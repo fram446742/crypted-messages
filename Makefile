@@ -1,7 +1,9 @@
 # Makefile para Windows con Docker
 
 # Configura la ruta al proyecto en formato de ruta de Docker
-PROJECT_DIR = /x/Programacion/otros/crypted-messages
+PROJECT_NAME = crypted-messages
+
+PROJECT_DIR = /x/Programacion/otros/$(PROJECT_NAME)
 
 # Lista de objetivos
 TARGETS = x86_64-unknown-linux-musl x86_64-unknown-linux-gnu x86_64-apple-darwin \
@@ -16,12 +18,12 @@ RED = \033[31m
 YELLOW = \033[33m
 CYAN = \033[36m
 
-# Puedes agregar una regla para asegurarte de que la imagen esté actualizada
+# Actualiza la imagen de Docker
 update-image:
 	@docker pull joseluisq/rust-linux-darwin-builder
 .PHONY: update-image
 
-# Compilar todos los objetivos y mostrar los exitosos
+# Compilar todos los objetivos
 compile: update-image
 	@docker run --rm -it \
 		-v $(PROJECT_DIR):/drone/src \
@@ -29,7 +31,7 @@ compile: update-image
 		joseluisq/rust-linux-darwin-builder:latest \
 		make cross-compile
 
-# Regla para compilar con diferentes objetivos
+# Regla para compilar y renombrar el binario
 cross-compile:
 	@echo -e "$(CYAN)Compiling targets...$(RESET)"
 	@successful_targets="" && \
@@ -37,13 +39,20 @@ cross-compile:
 		echo -e "$(YELLOW)Building for $$target...$(RESET)" && \
 		if cargo build --release --target $$target; then \
 			successful_targets="$$successful_targets $$target"; \
+			binary_path=target/$$target/release/$(PROJECT_NAME); \
+			if [ -f $$binary_path ]; then \
+				mv $$binary_path target/$$target/release/$(PROJECT_NAME)-$$target; \
+				echo -e "$(GREEN)Renamed to $(PROJECT_NAME)-$$target$(RESET)"; \
+			else \
+				echo -e "$(RED)Binary not found for $$target$(RESET)"; \
+			fi; \
 		else \
 			echo -e "$(RED)Build failed for $$target$(RESET)"; \
 		fi; \
-	done && \
-	echo && \
-	echo -e "$(GREEN)Build completed!$(RESET)" && \
-	echo -e "$(CYAN)Successful targets:$(RESET)" && \
+	done; \
+	echo; \
+	echo -e "$(GREEN)Build completed!$(RESET)"; \
+	echo -e "$(CYAN)Successful targets:$(RESET)"; \
 	for target in $$successful_targets; do \
 		echo -e "$(BOLD)$$target$(RESET)"; \
 	done

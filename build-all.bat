@@ -29,4 +29,33 @@ if %errorlevel% == 0 (
     exit /b 1
 )
 
+REM Build for x86_64-pc-windows-msvc target
+cargo build --release --target x86_64-pc-windows-msvc
+
+REM Check if the MSVC build was successful
+if %errorlevel% == 0 (
+    echo MSVC Build successful.
+    if exist target\x86_64-pc-windows-msvc\release\crypted-messages.exe (
+        ren target\x86_64-pc-windows-msvc\release\crypted-messages.exe target\x86_64-pc-windows-msvc\release\crypted-messages-x86_64-pc-windows-msvc.exe
+    )
+) else (
+    echo MSVC Build failed.
+    exit /b 1
+)
+
+REM Build for x86_64-pc-windows-gnu target
+cargo build --release --target x86_64-pc-windows-gnu
+
+REM Check if the GNU build was successful
+if %errorlevel% == 0 (
+    echo GNU Build successful.
+    if exist target\x86_64-pc-windows-gnu\release\crypted-messages.exe (
+        ren target\x86_64-pc-windows-gnu\release\crypted-messages.exe target\x86_64-pc-windows-gnu\release\crypted-messages-x86_64-pc-windows-gnu.exe
+    )
+) else (
+    echo GNU Build failed.
+    exit /b 1
+)
+
+
 endlocal
