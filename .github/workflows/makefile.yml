@@ -14,8 +14,8 @@ jobs:
     - uses: actions/checkout@v4
 
     # Set up Docker on the runner
-    - name: Set up Docker
-      uses: docker/setup-buildx-action@v2
+    - name: Docker Setup Buildx
+      uses: docker/setup-buildx-action@v3.6.1
 
     # Pull and update Docker image
     - name: Update Docker Image
