@@ -33,7 +33,7 @@ Welcome to Crypted Messages! This repository contains a basic implementation of 
 3. Build the proyect:
 
     ```sh
-    cargo build
+    cargo build --release
     ```
 
 ## Usage
