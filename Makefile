@@ -23,8 +23,17 @@ update-image:
 	@docker pull joseluisq/rust-linux-darwin-builder
 .PHONY: update-image
 
+# Actualiza rustc en el contenedor
+update-rustc:
+	@docker run --rm -it \
+		-v $(PROJECT_DIR):/drone/src \
+		-w /drone/src \
+		joseluisq/rust-linux-darwin-builder:latest \
+		rustup update
+.PHONY: update-rustc
+
 # Compilar todos los objetivos
-compile: update-image
+compile: update-image update-rustc
 	@docker run --rm -it \
 		-v $(PROJECT_DIR):/drone/src \
 		-w /drone/src \
