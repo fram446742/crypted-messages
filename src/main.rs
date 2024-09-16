@@ -23,8 +23,16 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         println!("4. Exit");
 
         match get_user_input(Some("Enter your choice: ")).trim() {
-            "1" => start_server_flow().await?,
-            "2" => start_client().await?,
+            "1" => {
+                if let Err(e) = start_server_flow().await {
+                    eprintln!("Server error: {:?}", e);
+                }
+            }
+            "2" => {
+                if let Err(e) = start_client().await {
+                    eprintln!("Client error: {:?}", e);
+                }
+            }
             "3" => show_ip_address(),
             "4" => {
                 println!("Exiting...");
@@ -37,38 +45,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 async fn start_server_flow() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("Starting server...");
-    // println!("Do you want to run the server in the background and start client to chat?");
-    // println!("1. Yes");
-    // println!("2. No");
-
-    // let user_input = get_user_input(Some("Enter your choice: "));
-    // let binding = user_input.trim();
-
-    // if binding == "1" {
-    //     println!("Running server in the background...");
-
-    //     // Spawn the server in a background task
-    //     let server_handle = tokio::spawn(async {
-    //         if let Err(e) = server::main_server(None, None).await {
-    //             eprintln!("Server encountered an error: {:?}", e);
-    //         }
-    //     });
-
-    //     println!("Server is running in the background. Starting client...");
-
-    //     // Start client immediately after spawning the server
-    //     start_client().await?;
-
-    //     // Optional: You can await the server handle if you want to wait for the server to finish before exiting.
-    //     match server_handle.await {
-    //         Ok(result) => result,
-    //         Err(e) => return Err(Box::new(e)),
-    //     }
-    // } else {
-    // Run the server in the current task (blocking operation)
 
     // Ask for the IP address and port to bind the server to
-
     let ip = get_ip(None, Some("Enter the IP address (leave blank if unsure): "))?;
     let port = get_port(
         None,
@@ -76,16 +54,16 @@ async fn start_server_flow() -> Result<(), Box<dyn std::error::Error + Send + Sy
     )?;
 
     // Start the server
-
     server::main_server(None, Some(ip), Some(port)).await?;
-    // }
+
+    println!("Server stopped. Returning to the main menu...");
 
     Ok(())
 }
 
 async fn start_client() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     match client::main_client().await {
-        Ok(it) => it,
+        Ok(_) => println!("Client session ended. Returning to the main menu..."),
         Err(err) => return Err(err),
     };
     Ok(())

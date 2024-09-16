@@ -75,6 +75,7 @@ pub struct Client {
 pub enum ServerCommand {
     Close,
     ViewMessages,
+    ViewHistory,
     ViewKey,
     Invalid,
 }
@@ -85,7 +86,26 @@ impl ServerCommand {
             "/close" => ServerCommand::Close,
             "/view-messages" => ServerCommand::ViewMessages,
             "/view-key" => ServerCommand::ViewKey,
+            "/view-history" => ServerCommand::ViewHistory,
             _ => ServerCommand::Invalid,
+        }
+    }
+}
+
+pub enum ClientCommand {
+    Quit,
+    ToogleColor,
+    Help,
+    Invalid,
+}
+
+impl ClientCommand {
+    pub fn from_str(command: &str) -> Self {
+        match command {
+            "/quit" => ClientCommand::Quit,
+            "/toggle-color" => ClientCommand::ToogleColor,
+            "/help" => ClientCommand::Help,
+            _ => ClientCommand::Invalid,
         }
     }
 }
@@ -310,7 +330,7 @@ pub fn get_ip(ip: Option<&str>, message: Option<&str>) -> Result<String> {
         loop {
             // If the message is not none the message will be printed
             if let Some(ref message) = message {
-                println!("{}", message);
+                println!("> {}", message);
             } else {
                 println!("Enter Destination IP (leave blank for localhost): ");
             }
@@ -338,7 +358,7 @@ pub fn get_port(port: Option<String>, message: Option<&str>) -> Result<u16> {
     } else {
         loop {
             if let Some(ref message) = message {
-                println!("{}", message);
+                println!("> {}", message);
             } else {
                 println!("Enter destination port (leave blank for 5555): ");
             }

@@ -19,6 +19,15 @@ type SharedState = Arc<Mutex<HashMap<String, Client>>>;
 pub type AssignedColors = Arc<Mutex<HashSet<SerdeColor>>>;
 type Key = Arc<String>;
 type SudoKey = Arc<String>;
+type History = Arc<Mutex<VecDeque<Message>>>;
+
+const SUDO_MESSAGE: &str = "
+You have been granted sudo privileges.
+Use /close to close the connection.
+Use /view_messages to view your messages.
+Use /view_history to view global chat history.
+Use /view_key to view the AES key.
+";
 
 pub async fn main_server(
     key: Option<String>,
@@ -32,6 +41,7 @@ pub async fn main_server(
     let sudo_key: SudoKey = Arc::new(set_sudo_key());
     let state: SharedState = Arc::new(Mutex::new(HashMap::new()));
     let assigned_colors: AssignedColors = Arc::new(Mutex::new(HashSet::new()));
+    let history: History = Arc::new(Mutex::new(VecDeque::new()));
 
     // Main loop to accept incoming connections
     loop {
@@ -43,6 +53,7 @@ pub async fn main_server(
                     key.clone(),
                     sudo_key.clone(),
                     assigned_colors.clone(),
+                    history.clone(),
                 );
             }
             Err(e) => {
@@ -101,9 +112,11 @@ fn spawn_client_handler(
     key: Key,
     sudo_key: SudoKey,
     assigned_colors: AssignedColors,
+    history: History,
 ) {
     task::spawn(async move {
-        if let Err(e) = handle_client(socket, state, key, sudo_key, assigned_colors).await {
+        if let Err(e) = handle_client(socket, state, key, sudo_key, assigned_colors, history).await
+        {
             eprintln!("Failed to handle client: {:?}", e);
         }
     });
@@ -116,6 +129,7 @@ async fn handle_client(
     key: Key,
     sudo_key: SudoKey,
     assigned_colors: AssignedColors,
+    history: History,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let (reader, writer) = tokio::io::split(socket);
     let mut reader = BufReader::new(reader);
@@ -156,6 +170,7 @@ async fn handle_client(
         &writer_clone,
         sudo_key,
         color,
+        history,
     )
     .await;
 
@@ -239,6 +254,7 @@ async fn handle_incoming_messages(
     writer: &Arc<Mutex<tokio::io::WriteHalf<TcpStream>>>,
     sudo_key: SudoKey,
     color: SerdeColor,
+    history: History,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut buffer = [0u8; 1024];
 
@@ -263,7 +279,7 @@ async fn handle_incoming_messages(
                     let sudo_msg = Message {
                         name: Some("Server".to_string()),
                         timestamp: Some(get_timestamp()),
-                        message: Some("Sudo privileges granted".to_string()),
+                        message: Some(SUDO_MESSAGE.to_string()),
                         color: Some(color),
                     };
 
@@ -300,11 +316,31 @@ async fn handle_incoming_messages(
                 match ServerCommand::from_str(&message_content) {
                     ServerCommand::Close => {
                         println!("{} issued /close command", name);
+                        // let close_msg = Message {
+                        //     name: Some("Server".to_string()),
+                        //     timestamp: Some(get_timestamp()),
+                        //     message: Some("Closing connection...".to_string()),
+                        //     color: Some(color),
+                        // };
+
+                        let close_signal = Message {
+                            name: Some("Server".to_string()),
+                            timestamp: Some(get_timestamp()),
+                            message: Some("CLOSE_SIGNAL".to_string()),
+                            color: Some(color),
+                        };
+
+                        // let encrypted_msg = encrypt_message(&key, &close_msg)?;
+                        let encrypted_signal = encrypt_message(&key, &close_signal)?;
+                        let mut writer_lock = writer.lock().await;
+                        // writer_lock.write_all(&encrypted_msg).await?;
+                        writer_lock.write_all(&encrypted_signal).await?;
+                        writer_lock.flush().await?;
+
+                        tokio::time::sleep(Duration::from_secs(1)).await;
                         break; // Close the connection
                     }
                     ServerCommand::ViewMessages => {
-                        // TODO: Implement message history
-                        // TODO: Display messages from all clients
                         // Display message history to the client
                         let client_messages = client
                             .messages
@@ -323,6 +359,34 @@ async fn handle_incoming_messages(
                             name: Some("Server".to_string()),
                             timestamp: Some(get_timestamp()),
                             message: Some(client_messages),
+                            color: Some(color),
+                        };
+
+                        let encrypted_msg = encrypt_message(&key, &view_msg)?;
+                        let mut writer_lock = writer.lock().await;
+                        writer_lock.write_all(&encrypted_msg).await?;
+                        writer_lock.flush().await?;
+                    }
+                    ServerCommand::ViewHistory => {
+                        // Display global message history to the client
+                        let global_messages = history
+                            .lock()
+                            .await
+                            .iter()
+                            .map(|msg| {
+                                format!(
+                                    "{}: {}",
+                                    msg.timestamp.clone().unwrap_or("Unknown time".to_string()),
+                                    msg.message.as_deref().unwrap_or("")
+                                )
+                            })
+                            .collect::<Vec<String>>()
+                            .join("\n");
+
+                        let view_msg = Message {
+                            name: Some("Server".to_string()),
+                            timestamp: Some(get_timestamp()),
+                            message: Some(global_messages),
                             color: Some(color),
                         };
 
@@ -350,6 +414,64 @@ async fn handle_incoming_messages(
                     }
                 }
                 // continue; // Do not broadcast any command
+            } else {
+                let message_content = decrypted_msg.message.clone().unwrap_or_default();
+                match ServerCommand::from_str(&message_content) {
+                    ServerCommand::ViewMessages => {
+                        // Display message history to the client
+                        let client_messages = client
+                            .messages
+                            .iter()
+                            .map(|msg| {
+                                format!(
+                                    "{}: {}",
+                                    msg.timestamp.clone().unwrap_or("Unknown time".to_string()),
+                                    msg.message.as_deref().unwrap_or("")
+                                )
+                            })
+                            .collect::<Vec<String>>()
+                            .join("\n");
+
+                        let view_msg = Message {
+                            name: Some("Server".to_string()),
+                            timestamp: Some(get_timestamp()),
+                            message: Some(client_messages),
+                            color: Some(color),
+                        };
+
+                        let encrypted_msg = encrypt_message(&key, &view_msg)?;
+                        let mut writer_lock = writer.lock().await;
+                        writer_lock.write_all(&encrypted_msg).await?;
+                        writer_lock.flush().await?;
+                    }
+                    ServerCommand::Close => {
+                        println!("{} issued /close command", name);
+                        // let close_msg = Message {
+                        //     name: Some("Server".to_string()),
+                        //     timestamp: Some(get_timestamp()),
+                        //     message: Some("Closing connection...".to_string()),
+                        //     color: Some(color),
+                        // };
+
+                        let close_signal = Message {
+                            name: Some("Server".to_string()),
+                            timestamp: Some(get_timestamp()),
+                            message: Some("CLOSE_SIGNAL".to_string()),
+                            color: Some(color),
+                        };
+
+                        // let encrypted_msg = encrypt_message(&key, &close_msg)?;
+                        let encrypted_signal = encrypt_message(&key, &close_signal)?;
+                        let mut writer_lock = writer.lock().await;
+                        // writer_lock.write_all(&encrypted_msg).await?;
+                        writer_lock.write_all(&encrypted_signal).await?;
+                        writer_lock.flush().await?;
+
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                        break; // Close the connection
+                    }
+                    _ => (),
+                }
             }
         }
 
@@ -360,6 +482,9 @@ async fn handle_incoming_messages(
                 if let Some(client) = state.lock().await.get_mut(name) {
                     client.messages.push_back(decrypted_msg.clone());
                 }
+
+                // Store the message in the global history
+                history.lock().await.push_back(decrypted_msg.clone());
 
                 // Broadcast the message to other clients
                 broadcast_message(&key, &state, &name, decrypted_msg).await?;
@@ -402,7 +527,7 @@ async fn send_welcome_message(
     let welcome_msg = Message {
         name: Some("Server".to_string()),
         timestamp: Some(get_timestamp()),
-        message: Some(format!("Welcome {} to the chat!", name)),
+        message: Some(format!("Welcome {} to the chat! Use /help for available commands", name)),
         color: Some(color),
     };
 

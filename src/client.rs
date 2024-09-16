@@ -4,10 +4,10 @@ use crossterm::{
     terminal::{Clear, ClearType},
     ExecutableCommand,
 };
-use std::io::Write;
 use std::sync::Arc;
 use std::{collections::VecDeque, str};
 use std::{error::Error as StdError, time::Instant};
+use std::{io::Write, process};
 use tokio::net::TcpStream;
 use tokio::spawn;
 use tokio::sync::{mpsc, Mutex};
@@ -19,15 +19,17 @@ use tokio::{
 
 use crate::tools::{
     decrypt_handshake, decrypt_message, encrypt_handshake, encrypt_message, get_ip, get_port,
-    get_timestamp, Handshake, Message, SerdeColor,
+    get_timestamp, ClientCommand, Handshake, Message, SerdeColor,
 };
 
 type Instance = Arc<Mutex<(String, SerdeColor)>>;
 type Key = Arc<String>;
+type ColorBool = Arc<Mutex<bool>>;
 const BUFFER_SIZE: usize = 1024;
 const CHUNK_SIZE: usize = 1024; // Define your chunk size
 const CHUNKED_SIGNAL: &str = "START_CHUNK";
 const FINAL_CHUNK_SIGNAL: &str = "END_CHUNK";
+const CLOSE_SIGNAL: &str = "CLOSE_SIGNAL";
 
 // const SERVER_IP: &str = "127.0.0.1";
 // const SERVER_PORT: u16 = 5555;
@@ -48,6 +50,8 @@ pub async fn main_client() -> Result<(), Box<dyn StdError + Send + Sync>> {
     // Set key and instance (name + color)
     let key: Key = set_key().await?;
     let instance: Instance = set_name().await?;
+    let color_bool = Arc::new(Mutex::new(true));
+    let color_bool_clone = color_bool.clone();
 
     let mut buffer = [0u8; BUFFER_SIZE];
 
@@ -79,15 +83,24 @@ pub async fn main_client() -> Result<(), Box<dyn StdError + Send + Sync>> {
 
     // Task to handle incoming server messages
     spawn(async move {
-        if let Err(e) = handle_incoming_messages(key_clone, &mut reader, &mut chunk_buffer).await {
+        if let Err(e) =
+            handle_incoming_messages(key_clone, &mut reader, &mut chunk_buffer, color_bool_clone)
+                .await
+        {
             eprintln!("Error handling incoming messages: {:?}", e);
         }
     });
 
     // Sending messages to the server
-    send_messages_to_server(rx, &key, &instance, &mut writer).await?;
+    send_messages_to_server(rx, &key, &instance, &mut writer, color_bool).await?;
 
     Ok(())
+}
+
+async fn toogle_color(color_bool: ColorBool) {
+    let mut color_bool = color_bool.lock().await;
+    *color_bool = !*color_bool;
+    println!("Color mode toogled");
 }
 
 // Function to send the initial handshake to the server
@@ -213,12 +226,14 @@ async fn handle_incoming_messages(
     key: Key,
     reader: &mut BufReader<tokio::net::tcp::OwnedReadHalf>,
     chunk_buffer: &mut VecDeque<String>,
+    color_bool: ColorBool,
 ) -> Result<(), Box<dyn StdError + Send + Sync>> {
     let mut buffer = [0u8; BUFFER_SIZE];
     // let mut chunk_buffer = VecDeque::new();
     let mut is_chunked_message = false;
 
     loop {
+        let color_bool = color_bool.clone();
         match reader.read(&mut buffer).await {
             Ok(n) if n == 0 => {
                 // When n is 0, the server has closed the connection gracefully
@@ -250,9 +265,19 @@ async fn handle_incoming_messages(
                                     complete_message
                                 ),
                                 Color::from(decrypted_msg.color.unwrap_or(SerdeColor::Red)),
-                            );
+                                color_bool,
+                            )
+                            .await;
 
                             is_chunked_message = false;
+                        }
+                        CLOSE_SIGNAL => {
+                            // Server has closed the connection
+                            println!("Server has closed the connection");
+                            // Wait for an input to exit the client
+                            let _ = get_user_input(Some("Press Enter to exit..."));
+                            // TODO: Gracefully close the client so the main function restarts
+                            process::exit(0);
                         }
                         _ => {
                             if is_chunked_message {
@@ -269,7 +294,9 @@ async fn handle_incoming_messages(
                                         message
                                     ),
                                     Color::from(decrypted_msg.color.unwrap_or(SerdeColor::Red)),
-                                );
+                                    color_bool,
+                                )
+                                .await;
                             }
                         }
                     }
@@ -300,60 +327,107 @@ async fn send_messages_to_server(
     key: &Key,
     instance: &Instance,
     writer: &mut tokio::net::tcp::OwnedWriteHalf,
+    color_bool: ColorBool,
 ) -> Result<(), Box<dyn StdError + Send + Sync>> {
     while let Some(line) = rx.recv().await {
         let instance_lock = instance.lock().await;
+        let color = Color::from(instance_lock.1);
+        let color_bool = color_bool.clone();
 
         // println!("You: {}", line);
 
-        if line == CHUNKED_SIGNAL {
-            // Handle the chunked signal if needed
-            let chunk_message = Message::new(
-                Some(instance_lock.0.clone()),
-                Some(get_timestamp()),
-                Some("CHUNK_MESSAGE".to_string()),
-                Some(instance_lock.1),
-            );
-
-            let encrypted_chunk_message = encrypt_message(&key, &chunk_message)?;
-
-            if writer.write_all(&encrypted_chunk_message).await.is_err() {
-                eprintln!("Failed to send chunked message to server");
-                break;
+        match ClientCommand::from_str(&line) {
+            ClientCommand::ToogleColor => {
+                toogle_color(color_bool).await;
             }
-        } else if line == FINAL_CHUNK_SIGNAL {
-            let final_chunk_signal = Message::new(
-                Some(instance_lock.0.clone()),
-                Some(get_timestamp()),
-                Some("END_CHUNK".to_string()),
-                Some(instance_lock.1),
-            );
-
-            let encrypted_final_chunk = encrypt_message(&key, &final_chunk_signal)?;
-
-            if writer.write_all(&encrypted_final_chunk).await.is_err() {
-                eprintln!("Failed to send final chunk signal to server");
-                break;
+            ClientCommand::Help => {
+                let _ = print_colored_text("Commands:", color, color_bool.clone()).await;
+                let _ = print_colored_text("/color - Toogle color mode", color, color_bool.clone())
+                    .await;
+                let _ =
+                    print_colored_text("/help - Show this help message", color, color_bool.clone())
+                        .await;
+                let _ = print_colored_text(
+                    "/sudo (password) - Be granted admin privileges",
+                    color,
+                    color_bool.clone(),
+                )
+                .await;
+                let _ = print_colored_text(
+                    "/close - Close gracefully the connection",
+                    color,
+                    color_bool.clone(),
+                )
+                .await;
+                let _ = print_colored_text(
+                    "/quit - Forcefully quit the application",
+                    color,
+                    color_bool,
+                )
+                .await;
             }
+            ClientCommand::Quit => {
+                let _ = print_colored_text("Forcefully quitting...", color, color_bool).await;
+                sleep(Duration::from_secs(1)).await;
 
-            println!("[Debug] Received chunked signal from client");
-            continue; // Optionally skip sending this message or handle it differently
-        } else {
-            // Handle regular messages
-            let message = Message::new(
-                Some(instance_lock.0.clone()),
-                Some(get_timestamp()),
-                Some(line),
-                Some(instance_lock.1),
-            );
+                // Wait for an input to exit the client
+                // let _ = get_user_input(Some("Press Enter to exit..."));
+                process::exit(0);
+            }
+            _ => {
+                match line.as_str() {
+                    CHUNKED_SIGNAL => {
+                        let chunk_message = Message::new(
+                            Some(instance_lock.0.clone()),
+                            Some(get_timestamp()),
+                            Some("CHUNK_MESSAGE".to_string()),
+                            Some(instance_lock.1),
+                        );
 
-            // Encrypt the message
-            let encrypted_message = encrypt_message(&key, &message)?;
+                        let encrypted_chunk_message = encrypt_message(&key, &chunk_message)?;
 
-            // Send the encrypted message
-            if writer.write_all(&encrypted_message).await.is_err() {
-                eprintln!("Failed to send message to server");
-                break;
+                        if writer.write_all(&encrypted_chunk_message).await.is_err() {
+                            eprintln!("Failed to send chunked message to server");
+                            break;
+                        }
+                    }
+                    FINAL_CHUNK_SIGNAL => {
+                        let final_chunk_signal = Message::new(
+                            Some(instance_lock.0.clone()),
+                            Some(get_timestamp()),
+                            Some("END_CHUNK".to_string()),
+                            Some(instance_lock.1),
+                        );
+
+                        let encrypted_final_chunk = encrypt_message(&key, &final_chunk_signal)?;
+
+                        if writer.write_all(&encrypted_final_chunk).await.is_err() {
+                            eprintln!("Failed to send final chunk signal to server");
+                            break;
+                        }
+
+                        println!("[Debug] Received chunked signal from client");
+                        continue; // Optionally skip sending this message or handle it differently
+                    }
+                    _ => {
+                        // Handle regular messages
+                        let message = Message::new(
+                            Some(instance_lock.0.clone()),
+                            Some(get_timestamp()),
+                            Some(line.clone()),
+                            Some(instance_lock.1),
+                        );
+
+                        // Encrypt the message
+                        let encrypted_message = encrypt_message(&key, &message)?;
+
+                        // Send the encrypted message
+                        if writer.write_all(&encrypted_message).await.is_err() {
+                            eprintln!("Failed to send message to server");
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
@@ -385,27 +459,45 @@ fn get_user_input(prompt: Option<&str>) -> Result<String, std::io::Error> {
     Ok(input.trim().to_string())
 }
 
-fn print_colored_text(text: &str, color: Color) -> std::io::Result<()> {
-    let mut stdout = std::io::stdout();
-    // let stdin = std::io::stdin();
+async fn print_colored_text(
+    text: &str,
+    color: Color,
+    color_bool: ColorBool,
+) -> std::io::Result<()> {
+    let color_bool = color_bool.lock().await;
 
-    // Clear incomplete input from stdin
-    // let _ = stdin.read_line(&mut String::new());
+    match *color_bool {
+        true => {
+            let mut stdout = std::io::stdout();
 
-    // Set the foreground color
-    stdout.execute(SetForegroundColor(color))?;
+            // Set the foreground color
+            stdout.execute(SetForegroundColor(color))?;
 
-    // Print the text
-    execute!(stdout, Print(text))?;
+            // Print the text
+            execute!(stdout, Print(text))?;
 
-    // \n for better readability
-    execute!(stdout, Print("\n"))?;
+            // \n for better readability
+            execute!(stdout, Print("\n"))?;
 
-    // Reset the terminal color to default
-    stdout.execute(ResetColor)?;
+            // Reset the terminal color to default
+            stdout.execute(ResetColor)?;
 
-    // Clear incomplete commands or previous outputs
-    execute!(stdout, Clear(ClearType::FromCursorDown))?;
+            // Clear incomplete commands or previous outputs
+            execute!(stdout, Clear(ClearType::FromCursorDown))?;
+        }
+        false => {
+            let mut stdout = std::io::stdout();
+
+            // Print the text
+            execute!(stdout, Print(text))?;
+
+            // \n for better readability
+            execute!(stdout, Print("\n"))?;
+
+            // Clear incomplete commands or previous outputs
+            execute!(stdout, Clear(ClearType::FromCursorDown))?;
+        }
+    }
 
     Ok(())
 }
