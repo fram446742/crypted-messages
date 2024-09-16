@@ -1,0 +1,19 @@
+[build]
+default-target = "x86_64-pc-windows-msvc"    # use this target if none is explicitly provided
+pre-build = [                                  # additional commands to run prior to building the package
+    "dpkg --add-architecture $CROSS_DEB_ARCH", 
+    "apt-get update && apt-get --assume-yes install libssl-dev:$CROSS_DEB_ARCH"
+]
+
+
+# complete target commands
+[target.aarch64-apple-darwin]
+image = "rustembedded/cross:aarch64-apple-darwin"
+[target.aarch64-unknown-linux-gnu]
+[target.aarch64-unknown-linux-musl]
+[target.aarch64-pc-windows-msvc]
+[target.x86_64-apple-darwin]
+[target.x86_64-unknown-linux-gnu]
+[target.x86_64-unknown-linux-musl]
+[target.x86_64-pc-windows-msvc]
+[target.x86_64-pc-windows-gnu]
