@@ -113,43 +113,43 @@ pub enum SerdeColor {
     AnsiValue(u8),      // For 8-bit ANSI values
 }
 
-// Convert termcolor::Color to the appropriate SerdeColor when needed
-impl From<termcolor::Color> for SerdeColor {
-    fn from(color: termcolor::Color) -> Self {
-        match color {
-            termcolor::Color::Red => SerdeColor::Red,
-            termcolor::Color::Green => SerdeColor::Green,
-            termcolor::Color::Blue => SerdeColor::Blue,
-            termcolor::Color::White => SerdeColor::White,
-            termcolor::Color::Black => SerdeColor::Black,
-            termcolor::Color::Yellow => SerdeColor::Yellow,
-            termcolor::Color::Cyan => SerdeColor::Cyan,
-            termcolor::Color::Magenta => SerdeColor::Magenta,
-            termcolor::Color::Rgb(r, g, b) => SerdeColor::Custom(r, g, b),
-            // Handle unsupported color cases like None or AnsiValue here if necessary.
-            _ => SerdeColor::White, // Or return a default color
-        }
-    }
-}
+// // Convert termcolor::Color to the appropriate SerdeColor when needed
+// impl From<termcolor::Color> for SerdeColor {
+//     fn from(color: termcolor::Color) -> Self {
+//         match color {
+//             termcolor::Color::Red => SerdeColor::Red,
+//             termcolor::Color::Green => SerdeColor::Green,
+//             termcolor::Color::Blue => SerdeColor::Blue,
+//             termcolor::Color::White => SerdeColor::White,
+//             termcolor::Color::Black => SerdeColor::Black,
+//             termcolor::Color::Yellow => SerdeColor::Yellow,
+//             termcolor::Color::Cyan => SerdeColor::Cyan,
+//             termcolor::Color::Magenta => SerdeColor::Magenta,
+//             termcolor::Color::Rgb(r, g, b) => SerdeColor::Custom(r, g, b),
+//             // Handle unsupported color cases like None or AnsiValue here if necessary.
+//             _ => SerdeColor::White, // Or return a default color
+//         }
+//     }
+// }
 
-// Convert SerdeColor to the appropriate termcolor::Color when needed
-impl From<SerdeColor> for termcolor::Color {
-    fn from(color: SerdeColor) -> Self {
-        match color {
-            SerdeColor::Red => termcolor::Color::Red,
-            SerdeColor::Green => termcolor::Color::Green,
-            SerdeColor::Blue => termcolor::Color::Blue,
-            SerdeColor::White => termcolor::Color::White,
-            SerdeColor::Black => termcolor::Color::Black,
-            SerdeColor::Yellow => termcolor::Color::Yellow,
-            SerdeColor::Cyan => termcolor::Color::Cyan,
-            SerdeColor::Magenta => termcolor::Color::Magenta,
-            SerdeColor::Custom(r, g, b) => termcolor::Color::Rgb(r, g, b),
-            // Ignoring Crossterm-specific variants by falling back to a default color
-            _ => termcolor::Color::White,
-        }
-    }
-}
+// // Convert SerdeColor to the appropriate termcolor::Color when needed
+// impl From<SerdeColor> for termcolor::Color {
+//     fn from(color: SerdeColor) -> Self {
+//         match color {
+//             SerdeColor::Red => termcolor::Color::Red,
+//             SerdeColor::Green => termcolor::Color::Green,
+//             SerdeColor::Blue => termcolor::Color::Blue,
+//             SerdeColor::White => termcolor::Color::White,
+//             SerdeColor::Black => termcolor::Color::Black,
+//             SerdeColor::Yellow => termcolor::Color::Yellow,
+//             SerdeColor::Cyan => termcolor::Color::Cyan,
+//             SerdeColor::Magenta => termcolor::Color::Magenta,
+//             SerdeColor::Custom(r, g, b) => termcolor::Color::Rgb(r, g, b),
+//             // Ignoring Crossterm-specific variants by falling back to a default color
+//             _ => termcolor::Color::White,
+//         }
+//     }
+// }
 
 // Convert crossterm::style::Color to the appropriate SerdeColor when needed
 impl From<crossterm::style::Color> for SerdeColor {
