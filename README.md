@@ -44,6 +44,10 @@ Welcome to Crypted Messages! This repository contains a basic implementation of 
 cargo run
 ```
 
+## Important Notes
+
+You will need to have Docker with an specific image to be able to cross-compile the program using [build-all.bat](build-all.bat).
+
 ## Contributing
 
 We welcome contributions! Please read our [Contributing Guidelines](CONTRIBUTING.md) for more details.
