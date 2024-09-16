@@ -1,0 +1,29 @@
+name: Makefile CI
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # Set up Docker on the runner
+    - name: Docker Setup Buildx
+      uses: docker/setup-buildx-action@v3.6.1
+
+    # Pull and update Docker image
+    - name: Update Docker Image
+      run: |
+        docker pull joseluisq/rust-linux-darwin-builder:latest
+
+    # Execute Makefile to compile targets
+    - name: Compile project with Makefile
+      run: |
+        make compile
+
