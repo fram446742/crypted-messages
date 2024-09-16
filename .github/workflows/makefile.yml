@@ -4,6 +4,8 @@ on:
   release:
     types:
       - published
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
   build:
@@ -26,4 +28,25 @@ jobs:
     - name: Compile project with Makefile
       run: |
         make compile
+
+    # Upload multiple compiled files (wildcard or directory)
+    - name: Upload compiled files to release
+      uses: actions/upload-artifact@v4.4.0
+      with:
+        name: compiled-files
+        path: |
+          target\x86_64-apple-darwin\release\crypted-messages-x86_64-apple-darwin
+          target\aarch64-apple-darwin\release\crypted-messages-aarch64-apple-darwin
+          target\x86_64-unknown-linux-gnu\release\crypted-messages-x86_64-unknown-linux-gnu
+          target\x86_64-unknown-linux-musl\release\crypted-messages-x86_64-unknown-linux-musl
+          target\aarch64-unknown-linux-gnu\release\crypted-messages-aarch64-unknown-linux-gnu
+          target\aarch64-unknown-linux-musl\release\crypted-messages-aarch64-unknown-linux-musl
+
+    # Create a release and upload the artifacts
+    - name: Upload to GitHub Release
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: compiled-files
+        token: ${{ secrets.GITHUB_TOKEN }}
+        tag: ${{ github.ref }}
 
