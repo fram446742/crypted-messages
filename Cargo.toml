@@ -42,7 +42,3 @@ crossterm = "0.28.1"
 opt-level = "z"
 lto = true
 # panic = "abort"
-
-
-[target.x86_64-pc-windows-gnu]
-linker = "x86_64-w64-mingw32-gcc"
