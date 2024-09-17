@@ -339,7 +339,7 @@ async fn send_messages_to_server(
             }
             ClientCommand::Help => {
                 let _ = print_colored_text("Commands:", color, color_bool.clone()).await;
-                let _ = print_colored_text("/color - Toogle color mode", color, color_bool.clone())
+                let _ = print_colored_text("/toggle-color - Toogle color mode", color, color_bool.clone())
                     .await;
                 let _ =
                     print_colored_text("/help - Show this help message", color, color_bool.clone())
