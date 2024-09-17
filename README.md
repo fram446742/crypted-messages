@@ -15,6 +15,7 @@ Welcome to Crypted Messages! This repository contains a basic implementation of 
 ### Prerequisites
 
 - Rust
+- Chocolatey (if running the batch script)
 
 ### Installation
 
