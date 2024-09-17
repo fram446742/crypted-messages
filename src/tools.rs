@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::io::{self, Write};
 use std::net::IpAddr;
-// use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 
@@ -136,44 +135,6 @@ pub enum SerdeColor {
     Custom(u8, u8, u8), // RGB colors
     AnsiValue(u8),      // For 8-bit ANSI values
 }
-
-// // Convert termcolor::Color to the appropriate SerdeColor when needed
-// impl From<termcolor::Color> for SerdeColor {
-//     fn from(color: termcolor::Color) -> Self {
-//         match color {
-//             termcolor::Color::Red => SerdeColor::Red,
-//             termcolor::Color::Green => SerdeColor::Green,
-//             termcolor::Color::Blue => SerdeColor::Blue,
-//             termcolor::Color::White => SerdeColor::White,
-//             termcolor::Color::Black => SerdeColor::Black,
-//             termcolor::Color::Yellow => SerdeColor::Yellow,
-//             termcolor::Color::Cyan => SerdeColor::Cyan,
-//             termcolor::Color::Magenta => SerdeColor::Magenta,
-//             termcolor::Color::Rgb(r, g, b) => SerdeColor::Custom(r, g, b),
-//             // Handle unsupported color cases like None or AnsiValue here if necessary.
-//             _ => SerdeColor::White, // Or return a default color
-//         }
-//     }
-// }
-
-// // Convert SerdeColor to the appropriate termcolor::Color when needed
-// impl From<SerdeColor> for termcolor::Color {
-//     fn from(color: SerdeColor) -> Self {
-//         match color {
-//             SerdeColor::Red => termcolor::Color::Red,
-//             SerdeColor::Green => termcolor::Color::Green,
-//             SerdeColor::Blue => termcolor::Color::Blue,
-//             SerdeColor::White => termcolor::Color::White,
-//             SerdeColor::Black => termcolor::Color::Black,
-//             SerdeColor::Yellow => termcolor::Color::Yellow,
-//             SerdeColor::Cyan => termcolor::Color::Cyan,
-//             SerdeColor::Magenta => termcolor::Color::Magenta,
-//             SerdeColor::Custom(r, g, b) => termcolor::Color::Rgb(r, g, b),
-//             // Ignoring Crossterm-specific variants by falling back to a default color
-//             _ => termcolor::Color::White,
-//         }
-//     }
-// }
 
 // Convert crossterm::style::Color to the appropriate SerdeColor when needed
 impl From<crossterm::style::Color> for SerdeColor {
@@ -336,13 +297,19 @@ pub fn get_ip(ip: Option<&str>, message: Option<&str>, mode: AdressMode) -> Resu
                 println!("> {}", message);
             } else {
                 match mode {
-                    AdressMode::Server => println!("Enter Destination IP (leave blank for 0.0.0.0): "),
-                    AdressMode::Client => println!("Enter Destination IP (leave blank for 127.0.0.1): "),
+                    AdressMode::Server => {
+                        println!("Enter Destination IP (leave blank for 0.0.0.0): ")
+                    }
+                    AdressMode::Client => {
+                        println!("Enter Destination IP (leave blank for 127.0.0.1): ")
+                    }
                 }
             }
             io::stdout().flush().context("Failed to flush stdout")?;
             let mut host = String::new();
-            io::stdin().read_line(&mut host).context("Failed to read line from stdin")?;
+            io::stdin()
+                .read_line(&mut host)
+                .context("Failed to read line from stdin")?;
             let host = host.trim();
             let default_ip = match mode {
                 AdressMode::Server => "0.0.0.0",
@@ -369,12 +336,16 @@ pub fn get_port(port: Option<String>, message: Option<&str>, mode: AdressMode) -
             } else {
                 match mode {
                     AdressMode::Server => println!("Enter destination port (leave blank for 0): "),
-                    AdressMode::Client => println!("Enter destination port (leave blank for 5555): "),
+                    AdressMode::Client => {
+                        println!("Enter destination port (leave blank for 5555): ")
+                    }
                 }
             }
             io::stdout().flush().context("Failed to flush stdout")?;
             let mut port_str = String::new();
-            io::stdin().read_line(&mut port_str).context("Failed to read line from stdin")?;
+            io::stdin()
+                .read_line(&mut port_str)
+                .context("Failed to read line from stdin")?;
             let port_str = port_str.trim();
 
             let default_port = match mode {
@@ -393,17 +364,6 @@ pub fn get_port(port: Option<String>, message: Option<&str>, mode: AdressMode) -
         }
     }
 }
-
-// pub fn write_line_to_stdout(message: &str, stdout: &mut StandardStream, color_spec: &ColorSpec) {
-//     stdout.set_color(color_spec).unwrap();
-//     writeln!(stdout, "{}", message).unwrap();
-//     stdout.reset().unwrap(); // Reset color after printing
-// }
-
-// pub fn clear_input_prompt(stdout: &mut tokio::sync::MutexGuard<StandardStream>) {
-//     print!("\x1b[1G\x1b[2K"); // Move cursor to start and clear line
-//     stdout.flush().unwrap();
-// }
 
 pub fn get_timestamp() -> String {
     SystemTime::now()

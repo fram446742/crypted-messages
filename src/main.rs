@@ -3,7 +3,7 @@ mod server;
 mod tools;
 use local_ip_address::local_ip;
 use tokio::{self};
-use tools::{get_ip, get_port, get_user_input};
+use tools::get_user_input;
 
 #[tokio::main]
 async fn main() {
@@ -13,6 +13,7 @@ async fn main() {
     }
 }
 
+// Main menu
 async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loop {
         // Main menu
@@ -43,29 +44,18 @@ async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 }
 
+// Start the server
 async fn start_server_flow() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("Starting server...");
 
-    // Ask for the IP address and port to bind the server to
-    let ip = get_ip(
-        None,
-        Some("Enter the IP address (leave blank if unsure): "),
-        tools::AdressMode::Server,
-    )?;
-    let port = get_port(
-        None,
-        Some("Enter the port to bind the server to (leave blank for OS assign): "),
-        tools::AdressMode::Server,
-    )?;
-
     // Start the server
-    server::main_server(None, Some(ip), Some(port)).await?;
-
+    server::main_server(None).await?;
     println!("Server stopped. Returning to the main menu...");
 
     Ok(())
 }
 
+// Start the client
 async fn start_client() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     match client::main_client().await {
         Ok(_) => println!("Client session ended. Returning to the main menu..."),
@@ -74,6 +64,7 @@ async fn start_client() -> Result<(), Box<dyn std::error::Error + Send + Sync>> 
     Ok(())
 }
 
+// Show the local IP address
 fn show_ip_address() {
     match local_ip() {
         Ok(ip) => println!("This is my local IP address: {:?}", ip),

@@ -18,7 +18,8 @@ use tokio::{
 };
 
 use crate::tools::{
-    decrypt_handshake, decrypt_message, encrypt_handshake, encrypt_message, get_ip, get_port, get_timestamp, AdressMode, ClientCommand, Handshake, Message, SerdeColor
+    decrypt_handshake, decrypt_message, encrypt_handshake, encrypt_message, get_ip, get_port,
+    get_timestamp, AdressMode, ClientCommand, Handshake, Message, SerdeColor,
 };
 
 type Instance = Arc<Mutex<(String, SerdeColor)>>;
@@ -29,9 +30,6 @@ const CHUNK_SIZE: usize = 1024; // Define your chunk size
 const CHUNKED_SIGNAL: &str = "START_CHUNK";
 const FINAL_CHUNK_SIGNAL: &str = "END_CHUNK";
 const CLOSE_SIGNAL: &str = "CLOSE_SIGNAL";
-
-// const SERVER_IP: &str = "127.0.0.1";
-// const SERVER_PORT: u16 = 5555;
 const CONNECTION_TIMEOUT: u64 = 30;
 const RETRY_DELAY: u64 = 3; // Delay between connection attempts (in seconds)
 
@@ -368,9 +366,6 @@ async fn send_messages_to_server(
             ClientCommand::Quit => {
                 let _ = print_colored_text("Forcefully quitting...", color, color_bool).await;
                 sleep(Duration::from_secs(1)).await;
-
-                // Wait for an input to exit the client
-                // let _ = get_user_input(Some("Press Enter to exit..."));
                 process::exit(0);
             }
             _ => {

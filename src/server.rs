@@ -9,11 +9,11 @@ use tokio::sync::{broadcast, Mutex};
 use tokio::task;
 use tokio::time::{timeout, Duration};
 
-use crate::tools::random_color;
 use crate::tools::{
     decrypt_handshake, decrypt_message, encrypt_handshake, encrypt_message, generate_key,
     get_timestamp, Client, Handshake, Message, SerdeColor, ServerCommand,
 };
+use crate::tools::{get_ip, get_port, random_color, AdressMode};
 
 type SharedState = Arc<Mutex<HashMap<String, Client>>>;
 pub type AssignedColors = Arc<Mutex<HashSet<SerdeColor>>>;
@@ -31,9 +31,19 @@ Use /view_key to view the AES key.
 
 pub async fn main_server(
     key: Option<String>,
-    ip: Option<String>,
-    port: Option<u16>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Ask for the IP address and port to bind the server to
+    let ip = get_ip(
+        None,
+        Some("Enter the IP address (leave blank if unsure): "),
+        AdressMode::Server,
+    )?;
+    let port = get_port(
+        None,
+        Some("Enter the port to bind the server to (leave blank for OS assign): "),
+        AdressMode::Server,
+    )?;
+
     let listener = setup_tcp_listener(ip, port).await?;
 
     // Generate the SharedState and Key
@@ -80,12 +90,9 @@ fn set_sudo_key() -> String {
 
 // Setup the TCP listener
 async fn setup_tcp_listener(
-    ip: Option<String>,
-    port: Option<u16>,
+    ip: String,
+    mut port: u16,
 ) -> Result<TcpListener, Box<dyn std::error::Error + Send + Sync>> {
-    let ip = ip.unwrap_or_else(|| "0.0.0.0".to_string());
-    let mut port = port.unwrap_or_else(|| 0);
-
     loop {
         println!("[SERVER] Binding to {}:{}", ip, port);
         match TcpListener::bind(format!("{}:{}", ip, port)).await {
@@ -141,7 +148,6 @@ async fn handle_client(
     let name = perform_handshake(&key, &mut reader).await?;
 
     let color = assign_random_color(&state, &assigned_colors, &name).await?;
-    // let color = SerdeColor::White; // Assign a random color to each client
 
     // Register the client with an empty message history
     let (tx, rx) = broadcast::channel(10);
@@ -318,12 +324,6 @@ async fn handle_incoming_messages(
                 match ServerCommand::from_str(&message_content) {
                     ServerCommand::Close => {
                         println!("{} issued /close command", name);
-                        // let close_msg = Message {
-                        //     name: Some("Server".to_string()),
-                        //     timestamp: Some(get_timestamp()),
-                        //     message: Some("Closing connection...".to_string()),
-                        //     color: Some(color),
-                        // };
 
                         let close_signal = Message {
                             name: Some("Server".to_string()),
@@ -332,10 +332,8 @@ async fn handle_incoming_messages(
                             color: Some(color),
                         };
 
-                        // let encrypted_msg = encrypt_message(&key, &close_msg)?;
                         let encrypted_signal = encrypt_message(&key, &close_signal)?;
                         let mut writer_lock = writer.lock().await;
-                        // writer_lock.write_all(&encrypted_msg).await?;
                         writer_lock.write_all(&encrypted_signal).await?;
                         writer_lock.flush().await?;
 
@@ -448,12 +446,6 @@ async fn handle_incoming_messages(
                     }
                     ServerCommand::Close => {
                         println!("{} issued /close command", name);
-                        // let close_msg = Message {
-                        //     name: Some("Server".to_string()),
-                        //     timestamp: Some(get_timestamp()),
-                        //     message: Some("Closing connection...".to_string()),
-                        //     color: Some(color),
-                        // };
 
                         let close_signal = Message {
                             name: Some("Server".to_string()),
@@ -462,10 +454,8 @@ async fn handle_incoming_messages(
                             color: Some(color),
                         };
 
-                        // let encrypted_msg = encrypt_message(&key, &close_msg)?;
                         let encrypted_signal = encrypt_message(&key, &close_signal)?;
                         let mut writer_lock = writer.lock().await;
-                        // writer_lock.write_all(&encrypted_msg).await?;
                         writer_lock.write_all(&encrypted_signal).await?;
                         writer_lock.flush().await?;
 
