@@ -1,0 +1,27 @@
+[build]
+# default-target = "x86_64-pc-windows-msvc"    # use this target if none is explicitly provided
+pre-build = [                                  # additional commands to run prior to building the package
+    "dpkg --add-architecture $CROSS_DEB_ARCH", 
+    "apt-get update && apt-get --assume-yes install libssl-dev:$CROSS_DEB_ARCH"
+]
+dockerfile = "joseluisq/rust-linux-darwin-builder:latest"
+
+
+
+# complete target commands
+[target.aarch64-apple-darwin]
+dockerfile = "joseluisq/rust-linux-darwin-builder:latest"
+[target.aarch64-unknown-linux-gnu]
+dockerfile = "joseluisq/rust-linux-darwin-builder:latest"
+[target.aarch64-unknown-linux-musl]
+dockerfile = "joseluisq/rust-linux-darwin-builder:latest"
+# [target.aarch64-pc-windows-msvc]
+
+[target.x86_64-apple-darwin]
+dockerfile = "joseluisq/rust-linux-darwin-builder:latest"
+[target.x86_64-unknown-linux-gnu]
+dockerfile = "joseluisq/rust-linux-darwin-builder:latest"
+[target.x86_64-unknown-linux-musl]
+dockerfile = "joseluisq/rust-linux-darwin-builder:latest"
+[target.x86_64-pc-windows-gnu]
+# linker = "x86_64-w64-mingw32-gcc"

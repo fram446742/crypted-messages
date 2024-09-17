@@ -1,9 +1,8 @@
-# Makefile para Windows con Docker
-
 # Configura la ruta al proyecto en formato de ruta de Docker
 PROJECT_NAME = crypted-messages
 
-PROJECT_DIR = /x/Programacion/otros/$(PROJECT_NAME)
+# Utiliza una ruta relativa para el proyecto
+PROJECT_DIR = $(CURDIR)/
 
 # Lista de objetivos
 TARGETS = x86_64-unknown-linux-musl x86_64-unknown-linux-gnu x86_64-apple-darwin \
@@ -47,7 +46,7 @@ cross-compile:
 	unsuccessful_targets="" && \
 	for target in $(TARGETS); do \
 		echo -e "$(YELLOW)Building for $$target...$(RESET)" && \
-		if cargo build --release --target $$target; then \
+		if cargo build --manifest-path=drone/src/Cargo.toml --release --target $$target; then \
 			successful_targets="$$successful_targets $$target"; \
 			binary_path=target/$$target/release/$(PROJECT_NAME); \
 			if [ -f $$binary_path ]; then \

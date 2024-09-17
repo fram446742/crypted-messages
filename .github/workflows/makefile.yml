@@ -14,6 +14,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Install build-essential
+      - name: Install build-essential
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
       # Set up Docker (ensure Docker is available to use)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

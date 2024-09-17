@@ -12,6 +12,23 @@ if %errorlevel% == 0 (
     exit /b 1
 )
 
+REM chech if 'cross' command exists
+where cross >nul 2>nul
+if %errorlevel% == 0 (
+    echo 'cross' is already installed.
+) else (
+    echo Installing cross using Cargo...
+    cargo install cross
+    where cross >nul 2>nul
+    if %errorlevel% == 0 (
+        echo 'cross' installed successfully.
+    ) else (
+        echo Failed to install 'cross'.
+        pause
+        exit /b 1
+    )
+)
+
 REM Ask the user if they want to compile only for Windows targets or for all targets
 set /p targets=Do you want to compile only for Windows targets (w) or for all targets (a)? [w/a]:
 if /i not "%targets%"=="w" if /i not "%targets%"=="a" (
