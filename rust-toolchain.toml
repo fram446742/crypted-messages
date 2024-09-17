@@ -1,0 +1,8 @@
+[toolchain]
+channel = "nightly"
+targets = [
+        "x86_64-pc-windows-msvc",       # Windows on x86_64 with MSVC
+        "x86_64-pc-windows-gnu",        # Windows on x86_64 with GNU
+]
+[target.x86_64-pc-windows-gnu]
+profile = "minimal"
