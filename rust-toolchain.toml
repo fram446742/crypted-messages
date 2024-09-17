@@ -11,3 +11,9 @@ targets = [
         "x86_64-pc-windows-msvc",       # Windows on x86_64 with MSVC
         "x86_64-pc-windows-gnu",        # Windows on x86_64 with GNU
 ]
+[target.'cfg(target_os = "macos")']
+profile = "minimal"
+[target.'cfg(target_os = "linux")']
+profile = "minimal"
+[target.x86_64-pc-windows-gnu]
+profile = "minimal"
