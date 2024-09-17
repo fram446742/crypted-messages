@@ -1,6 +1,4 @@
 #!/bin/bash
-# set -e  # Exit immediately if a command exits with a non-zero status
-
 # Check if 'cargo' command exists
 if command -v cargo &>/dev/null; then
     echo "'cargo' is already installed."
