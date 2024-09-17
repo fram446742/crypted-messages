@@ -50,7 +50,7 @@ async fn start_server_flow() -> Result<(), Box<dyn std::error::Error + Send + Sy
     let ip = get_ip(None, Some("Enter the IP address (leave blank if unsure): "))?;
     let port = get_port(
         None,
-        Some("Enter the port to bind the server to (leave blank for 5555): "),
+        Some("Enter the port to bind the server to (leave blank for OS assign): "),
     )?;
 
     // Start the server

@@ -371,7 +371,7 @@ pub fn get_port(port: Option<String>, message: Option<&str>) -> Result<u16> {
             let port_str = port_str.trim();
 
             if port_str.is_empty() {
-                return Ok(5555);
+                return Ok(0);
             }
 
             match port_str.parse::<u16>() {

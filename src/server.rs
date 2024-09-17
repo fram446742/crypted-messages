@@ -84,15 +84,16 @@ async fn setup_tcp_listener(
     port: Option<u16>,
 ) -> Result<TcpListener, Box<dyn std::error::Error + Send + Sync>> {
     let ip = ip.unwrap_or_else(|| "0.0.0.0".to_string());
-    let mut port = port.unwrap_or_else(|| 5555);
+    let mut port = port.unwrap_or_else(|| 0);
 
     loop {
         match TcpListener::bind(format!("{}:{}", ip, port)).await {
             Ok(listener) => {
                 println!(
-                    "[SERVER] Running on {}:{}",
+                    "[SERVER] Running on {}:{}, public IP: {}. Waiting for connections...",
+                    listener.local_addr().unwrap().ip(),
+                    listener.local_addr().unwrap().port(),
                     local_ip().unwrap_or_else(|_| "Unknown ip".parse().unwrap()),
-                    port
                 );
                 return Ok(listener);
             }
