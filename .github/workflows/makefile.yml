@@ -1,4 +1,4 @@
-name: Build and Attach All Files to Release
+name: Makefile
 
 on:
   release:
