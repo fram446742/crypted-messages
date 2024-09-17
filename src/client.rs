@@ -18,8 +18,7 @@ use tokio::{
 };
 
 use crate::tools::{
-    decrypt_handshake, decrypt_message, encrypt_handshake, encrypt_message, get_ip, get_port,
-    get_timestamp, ClientCommand, Handshake, Message, SerdeColor,
+    decrypt_handshake, decrypt_message, encrypt_handshake, encrypt_message, get_ip, get_port, get_timestamp, AdressMode, ClientCommand, Handshake, Message, SerdeColor
 };
 
 type Instance = Arc<Mutex<(String, SerdeColor)>>;
@@ -37,8 +36,8 @@ const CONNECTION_TIMEOUT: u64 = 30;
 const RETRY_DELAY: u64 = 3; // Delay between connection attempts (in seconds)
 
 pub async fn main_client() -> Result<(), Box<dyn StdError + Send + Sync>> {
-    let server_ip = get_ip(None, None)?;
-    let server_port = get_port(None, None)?;
+    let server_ip = get_ip(None, None, AdressMode::Client)?;
+    let server_port = get_port(None, None, AdressMode::Client)?;
 
     // Keep trying to connect to the server with a 30-second timeout
     let socket = wait_for_server(&server_ip, server_port).await?;

@@ -13,6 +13,10 @@ use std::net::IpAddr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 
+pub enum AdressMode {
+    Server,
+    Client,
+}
 // Estructura del mensaje
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct Message {
@@ -322,26 +326,29 @@ pub fn random_color() -> SerdeColor {
     ))
 }
 
-pub fn get_ip(ip: Option<&str>, message: Option<&str>) -> Result<String> {
+pub fn get_ip(ip: Option<&str>, message: Option<&str>, mode: AdressMode) -> Result<String> {
     if let Some(ip) = ip {
         println!("[Tools-Debug] Destination IP: {}", ip);
         Ok(ip.to_string())
     } else {
         loop {
-            // If the message is not none the message will be printed
             if let Some(ref message) = message {
                 println!("> {}", message);
             } else {
-                println!("Enter Destination IP (leave blank for localhost): ");
+                match mode {
+                    AdressMode::Server => println!("Enter Destination IP (leave blank for 0.0.0.0): "),
+                    AdressMode::Client => println!("Enter Destination IP (leave blank for 127.0.0.1): "),
+                }
             }
-            // print!("Enter Destination IP (leave blank for localhost): ");
             io::stdout().flush().context("Failed to flush stdout")?;
             let mut host = String::new();
-            io::stdin()
-                .read_line(&mut host)
-                .context("Failed to read line from stdin")?;
+            io::stdin().read_line(&mut host).context("Failed to read line from stdin")?;
             let host = host.trim();
-            let host = if host.is_empty() { "127.0.0.1" } else { host };
+            let default_ip = match mode {
+                AdressMode::Server => "0.0.0.0",
+                AdressMode::Client => "127.0.0.1",
+            };
+            let host = if host.is_empty() { default_ip } else { host };
 
             if host.parse::<IpAddr>().is_ok() {
                 return Ok(host.to_string());
@@ -352,30 +359,35 @@ pub fn get_ip(ip: Option<&str>, message: Option<&str>) -> Result<String> {
     }
 }
 
-pub fn get_port(port: Option<String>, message: Option<&str>) -> Result<u16> {
+pub fn get_port(port: Option<String>, message: Option<&str>, mode: AdressMode) -> Result<u16> {
     if let Some(port_str) = port {
-        port_str.parse::<u16>().context("Invalid port number") // Convert parsing error to a context error
+        port_str.parse::<u16>().context("Invalid port number")
     } else {
         loop {
             if let Some(ref message) = message {
                 println!("> {}", message);
             } else {
-                println!("Enter destination port (leave blank for 5555): ");
+                match mode {
+                    AdressMode::Server => println!("Enter destination port (leave blank for 0): "),
+                    AdressMode::Client => println!("Enter destination port (leave blank for 5555): "),
+                }
             }
-            // print!("Enter destination port (leave blank for 5555): ");
             io::stdout().flush().context("Failed to flush stdout")?;
             let mut port_str = String::new();
-            io::stdin()
-                .read_line(&mut port_str)
-                .context("Failed to read line from stdin")?;
+            io::stdin().read_line(&mut port_str).context("Failed to read line from stdin")?;
             let port_str = port_str.trim();
 
+            let default_port = match mode {
+                AdressMode::Server => 0,
+                AdressMode::Client => 5555,
+            };
+
             if port_str.is_empty() {
-                return Ok(0);
+                return Ok(default_port);
             }
 
             match port_str.parse::<u16>() {
-                std::result::Result::Ok(port_num) => return std::result::Result::Ok(port_num),
+                Result::Ok(port_num) => return Ok(port_num),
                 Err(_) => println!("Invalid port number."),
             }
         }

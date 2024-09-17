@@ -129,5 +129,30 @@ if /i "%targets%"=="w" (
 
 )
 
+REM Once the build is complete, ask the user if they want to copy the executables to the 'bin' directory
+set /p copy=Do you want to copy the executables to the 'bin' directory? [y/n]:
+if /i "%copy%"=="y" (
+    if exist bin\ (
+        del /q bin\*
+    ) else (
+        mkdir bin
+    )
+
+    REM Search for all the executables like crypted-messages*.exe and copy them to the 'bin' directory and do it for all targets inside the folders like (architecture) and (release) except for the ones that have a .d extension
+
+    for /r target %%f in (crypted-messages*) do (
+        if "%%~xf"=="" (
+            copy "%%f" bin
+        ) else if "%%~xf"==".exe" (
+            copy "%%f" bin
+        )
+    )
+
+    echo Executables copied to the 'bin' directory.
+) else (
+    echo Executables not copied to the 'bin' directory.
+)
+
+
 endlocal
 pause

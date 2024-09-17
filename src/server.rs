@@ -87,6 +87,7 @@ async fn setup_tcp_listener(
     let mut port = port.unwrap_or_else(|| 0);
 
     loop {
+        println!("[SERVER] Binding to {}:{}", ip, port);
         match TcpListener::bind(format!("{}:{}", ip, port)).await {
             Ok(listener) => {
                 println!(
@@ -528,7 +529,10 @@ async fn send_welcome_message(
     let welcome_msg = Message {
         name: Some("Server".to_string()),
         timestamp: Some(get_timestamp()),
-        message: Some(format!("Welcome {} to the chat! Use /help for available commands", name)),
+        message: Some(format!(
+            "Welcome {} to the chat! Use /help for available commands",
+            name
+        )),
         color: Some(color),
     };
 
