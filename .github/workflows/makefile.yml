@@ -1,49 +1,47 @@
-name: Makefile CI
+name: Build and Attach All Files to Release
 
 on:
   release:
     types:
-      - published
-
-env:
-  CARGO_TERM_COLOR: always
+      - created  # Trigger this workflow when a release is created
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      # Checkout the code
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    # Set up Docker on the runner
-    - name: Docker Setup Buildx
-      uses: docker/setup-buildx-action@v3.6.1
+      # Set up Docker (ensure Docker is available to use)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    # Pull and update Docker image
-    - name: Update Docker Image
-      run: |
-        docker pull joseluisq/rust-linux-darwin-builder:latest
+      # Pull the specific Docker image (for use in the shell script)
+      - name: Pull Docker Image
+        run: docker pull joseluisq/rust-linux-darwin-builder:latest
 
-    # Execute Makefile to compile targets
-    - name: Compile project with Makefile
-      run: |
-        make compile
+      # Add execution permission to the shell script
+      - name: Make shell script executable
+        run: chmod +x ./build.sh
 
-    # Debugging: List compiled files to check they exist
-    - name: List compiled files
-      run: ls -la target
+      # Run the shell script directly (which can interact with Docker)
+      - name: Run Shell Script
+        run: ./build.sh
 
-    # Upload files to GitHub Release using svenstaro/upload-release-action
-    - name: Upload to GitHub Release
-      uses: svenstaro/upload-release-action@2.9.0
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: |
-          target/x86_64-apple-darwin/release/crypted-messages-x86_64-apple-darwin
-          target/aarch64-apple-darwin/release/crypted-messages-aarch64-apple-darwin
-          target/x86_64-unknown-linux-gnu/release/crypted-messages-x86_64-unknown-linux-gnu
-          target/x86_64-unknown-linux-musl/release/crypted-messages-x86_64-unknown-linux-musl
-          target/aarch64-unknown-linux-gnu/release/crypted-messages-aarch64-unknown-linux-gnu
-          target/aarch64-unknown-linux-musl/release/crypted-messages-aarch64-unknown-linux-musl
-        tag: ${{ github.ref }}
-        overwrite: true
+      # Archive build artifacts (bin folder)
+      - name: Archive build artifacts
+        run: |
+          mkdir -p artifacts
+          cp -r ./bin/* artifacts/  # Copy all generated files from bin to artifacts
+
+      # Upload each file in the bin directory to the release
+      - name: Upload Release Assets
+        run: |
+          for file in ./artifacts/*; do
+            echo "Uploading $file"
+            gh release upload ${{ github.event.release.tag_name }} $file --clobber
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Automatically provided by GitHub Actions
