@@ -4,12 +4,12 @@ use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use anyhow::{anyhow, Context, Ok, Result};
 use crossterm::style::Color;
 // Import anyhow for error handling
+use chrono::prelude::*;
 use rand::{Rng, RngCore};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::io::{self, Write};
 use std::net::IpAddr;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast;
 
 pub enum AdressMode {
@@ -366,11 +366,15 @@ pub fn get_port(port: Option<String>, message: Option<&str>, mode: AdressMode) -
 }
 
 pub fn get_timestamp() -> String {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("System time before UNIX epoch")
-        .as_secs()
-        .to_string()
+    let local: DateTime<Local> = Local::now();
+    let year = local.year();
+    let month = local.month();
+    let day = local.day();
+    let hour = local.hour();
+    let minute = local.minute();
+    let second = local.second();
+
+    format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
 }
 
 pub fn get_user_input(prompt: Option<&str>) -> String {
@@ -479,50 +483,87 @@ pub fn decrypt_handshake(key_str: &str, ciphertext: &[u8]) -> Result<Handshake> 
 }
 
 #[cfg(test)]
-// Define a struct for testing purposes
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-struct TestData {
-    message: String,
-    number: u32,
-}
 
-#[test]
-fn test_aes_encryption_decryption() -> Result<()> {
-    // Define a shared key (32 bytes for AES-256)
-    let key = generate_key(32);
+mod tests {
+    use super::*;
+    use anyhow::Result;
+    use regex::Regex;
+    use serde::{Deserialize, Serialize};
+    // Define a struct for testing purposes
+    #[derive(Serialize, Deserialize, Debug, PartialEq)]
+    struct TestData {
+        message: String,
+        number: u32,
+    }
 
-    // Create a Message
-    let message = Message {
-        name: Some("Alice".to_string()),
-        timestamp: Some("2024-09-12T12:34:56Z".to_string()),
-        message: Some("Hello, Bob!".to_string()),
-        color: Some(SerdeColor::Red),
-    };
+    #[test]
+    fn test_aes_encryption_decryption() -> Result<()> {
+        // Define a shared key (32 bytes for AES-256)
+        let key = generate_key(32);
 
-    // Encrypt and Decrypt a Message
-    let encrypted_message = encrypt_message(&key, &message)?;
-    println!("Encrypted Message: {:?}", encrypted_message);
+        // Create a Message
+        let message = Message {
+            name: Some("Alice".to_string()),
+            timestamp: Some("2024-09-12T12:34:56Z".to_string()),
+            message: Some("Hello, Bob!".to_string()),
+            color: Some(SerdeColor::Red),
+        };
 
-    let decrypted_message = decrypt_message(&key, &encrypted_message)?;
-    println!("Decrypted Message: {:?}", decrypted_message);
+        // Encrypt and Decrypt a Message
+        let encrypted_message = encrypt_message(&key, &message)?;
+        println!("Encrypted Message: {:?}", encrypted_message);
 
-    // Create a Handshake
-    let handshake = Handshake {
-        name: "Alice".to_string(),
-        buffer_size: 1024,
-        color: Some(SerdeColor::Blue),
-    };
+        let decrypted_message = decrypt_message(&key, &encrypted_message)?;
+        println!("Decrypted Message: {:?}", decrypted_message);
 
-    // Encrypt and Decrypt a Handshake
-    let encrypted_handshake = encrypt_handshake(&key, &handshake)?;
-    println!("Encrypted Handshake: {:?}", encrypted_handshake);
+        // Create a Handshake
+        let handshake = Handshake {
+            name: "Alice".to_string(),
+            buffer_size: 1024,
+            color: Some(SerdeColor::Blue),
+        };
 
-    let decrypted_handshake = decrypt_handshake(&key, &encrypted_handshake)?;
-    println!("Decrypted Handshake: {:?}", decrypted_handshake);
+        // Encrypt and Decrypt a Handshake
+        let encrypted_handshake = encrypt_handshake(&key, &handshake)?;
+        println!("Encrypted Handshake: {:?}", encrypted_handshake);
 
-    // Verify the decrypted data matches the original data
-    assert_eq!(message, decrypted_message);
-    assert_eq!(handshake, decrypted_handshake);
+        let decrypted_handshake = decrypt_handshake(&key, &encrypted_handshake)?;
+        println!("Decrypted Handshake: {:?}", decrypted_handshake);
 
-    Ok(())
+        // Verify the decrypted data matches the original data
+        assert_eq!(message, decrypted_message);
+        assert_eq!(handshake, decrypted_handshake);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_timestamp_format() {
+        // Get the current timestamp string
+        let timestamp = get_timestamp();
+
+        // Define the regex pattern for the timestamp (YYYY-MM-DD HH:MM::SS)
+        let re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$").unwrap();
+        // let re = Regex::new(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$").unwrap();
+
+        // Assert that the timestamp matches the regex pattern
+        assert!(re.is_match(&timestamp), "Timestamp format is incorrect");
+
+        // Optionally, split the string to validate each part is in a valid range
+        let parts: Vec<&str> = timestamp.split(&['-', ' ', ':'][..]).collect();
+        let year: i32 = parts[0].parse().unwrap();
+        let month: u32 = parts[1].parse().unwrap();
+        let day: u32 = parts[2].parse().unwrap();
+        let hour: u32 = parts[3].parse().unwrap();
+        let minute: u32 = parts[4].parse().unwrap();
+        let second: u32 = parts[5].parse().unwrap();
+
+        // Check if each component of the timestamp is within a valid range
+        assert!(year > 1970, "Year is out of range");
+        assert!(month >= 1 && month <= 12, "Month is out of range");
+        assert!(day >= 1 && day <= 31, "Day is out of range");
+        assert!(hour < 24, "Hour is out of range");
+        assert!(minute < 60, "Minute is out of range");
+        assert!(second < 60, "Second is out of range");
+    }
 }

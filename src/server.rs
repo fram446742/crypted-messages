@@ -21,12 +21,13 @@ type Key = Arc<String>;
 type SudoKey = Arc<String>;
 type History = Arc<Mutex<VecDeque<Message>>>;
 
+// TODO: Fix the timestamp to show a more human-readable format
 const SUDO_MESSAGE: &str = "
 You have been granted sudo privileges.
 Use /close to close the connection.
-Use /view_messages to view your messages.
-Use /view_history to view global chat history.
-Use /view_key to view the AES key.
+Use /view-messages to view your messages.
+Use /view-history to view global chat history.
+Use /view-key to view the AES key.
 ";
 
 pub async fn main_server(
