@@ -44,6 +44,7 @@ compile: update-image update-rustc
 cross-compile:
 	@echo -e "$(CYAN)Compiling targets...$(RESET)"
 	@successful_targets="" && \
+	unsuccessful_targets="" && \
 	for target in $(TARGETS); do \
 		echo -e "$(YELLOW)Building for $$target...$(RESET)" && \
 		if cargo build --release --target $$target; then \
@@ -56,6 +57,7 @@ cross-compile:
 				echo -e "$(RED)Binary not found for $$target$(RESET)"; \
 			fi; \
 		else \
+			unsuccessful_targets="$$unsuccessful_targets $$target"; \
 			echo -e "$(RED)Build failed for $$target$(RESET)"; \
 		fi; \
 	done; \
@@ -64,5 +66,9 @@ cross-compile:
 	echo -e "$(CYAN)Successful targets:$(RESET)"; \
 	for target in $$successful_targets; do \
 		echo -e "$(BOLD)$$target$(RESET)"; \
+	done; \
+	echo -e "$(CYAN)Unsuccessful targets:$(RESET)"; \
+	for target in $$unsuccessful_targets; do \
+		echo -e "$(RED)$$target$(RESET)"; \
 	done
 .PHONY: cross-compile
