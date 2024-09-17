@@ -32,6 +32,15 @@ const FINAL_CHUNK_SIGNAL: &str = "END_CHUNK";
 const CLOSE_SIGNAL: &str = "CLOSE_SIGNAL";
 const CONNECTION_TIMEOUT: u64 = 30;
 const RETRY_DELAY: u64 = 3; // Delay between connection attempts (in seconds)
+const HELP_MESSAGE: &str = "
+Commands:
+/toggle-color - Toggle color mode
+Use /view-messages to view your messages.
+/help - Show this help message
+/sudo (password) - Be granted admin privileges
+/close - Close gracefully the connection
+/quit - Forcefully quit the application
+";
 
 pub async fn main_client() -> Result<(), Box<dyn StdError + Send + Sync>> {
     let server_ip = get_ip(None, None, AdressMode::Client)?;
@@ -272,8 +281,15 @@ async fn handle_incoming_messages(
                             // Server has closed the connection
                             println!("Server has closed the connection");
                             // Wait for an input to exit the client
-                            let _ = get_user_input(Some("Press Enter to exit..."));
-                            // TODO: Gracefully close the client so the main function restarts
+                            for i in (1..=3).rev() {
+                                print!("\rClosing in {}...", i);
+                                std::io::stdout().flush().unwrap();
+                                time::sleep(Duration::from_secs(1)).await;
+                            }
+                            std::io::stdout().flush().unwrap();
+                            print!("\rClosed...         ");
+                            // time::sleep(Duration::from_secs(1)).await;
+                            // FEATURE: Add restart option
                             process::exit(0);
                         }
                         _ => {
@@ -338,30 +354,7 @@ async fn send_messages_to_server(
                 toogle_color(color_bool).await;
             }
             ClientCommand::Help => {
-                let _ = print_colored_text("Commands:", color, color_bool.clone()).await;
-                let _ = print_colored_text("/toggle-color - Toogle color mode", color, color_bool.clone())
-                    .await;
-                let _ =
-                    print_colored_text("/help - Show this help message", color, color_bool.clone())
-                        .await;
-                let _ = print_colored_text(
-                    "/sudo (password) - Be granted admin privileges",
-                    color,
-                    color_bool.clone(),
-                )
-                .await;
-                let _ = print_colored_text(
-                    "/close - Close gracefully the connection",
-                    color,
-                    color_bool.clone(),
-                )
-                .await;
-                let _ = print_colored_text(
-                    "/quit - Forcefully quit the application",
-                    color,
-                    color_bool,
-                )
-                .await;
+                let _ = print_colored_text(HELP_MESSAGE, color, color_bool).await;
             }
             ClientCommand::Quit => {
                 let _ = print_colored_text("Forcefully quitting...", color, color_bool).await;

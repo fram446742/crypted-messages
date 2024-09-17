@@ -376,7 +376,8 @@ async fn handle_incoming_messages(
                             .iter()
                             .map(|msg| {
                                 format!(
-                                    "{}: {}",
+                                    "{}: {}: {}",
+                                    msg.name.clone().unwrap_or("Unknown".to_string()),
                                     msg.timestamp.clone().unwrap_or("Unknown time".to_string()),
                                     msg.message.as_deref().unwrap_or("")
                                 )
@@ -385,7 +386,7 @@ async fn handle_incoming_messages(
                             .join("\n");
 
                         let view_msg = Message {
-                            name: Some("Server".to_string()),
+                            name: None,
                             timestamp: Some(get_timestamp()),
                             message: Some(global_messages),
                             color: Some(color),
@@ -406,6 +407,26 @@ async fn handle_incoming_messages(
                         };
 
                         let encrypted_msg = encrypt_message(&key, &key_msg)?;
+                        let mut writer_lock = writer.lock().await;
+                        writer_lock.write_all(&encrypted_msg).await?;
+                        writer_lock.flush().await?;
+                    }
+                    ServerCommand::ChangeColor => {
+                        // Change the client's color
+                        let new_color = random_color();
+                        if let Some(client) = state.lock().await.get_mut(name) {
+                            client.color = new_color.clone();
+                        }
+
+                        // Send a confirmation message to the client
+                        let color_msg = Message {
+                            name: Some("Server".to_string()),
+                            timestamp: Some(get_timestamp()),
+                            message: Some(format!("Color changed to {:?}", new_color)),
+                            color: Some(new_color),
+                        };
+
+                        let encrypted_msg = encrypt_message(&key, &color_msg)?;
                         let mut writer_lock = writer.lock().await;
                         writer_lock.write_all(&encrypted_msg).await?;
                         writer_lock.flush().await?;
@@ -441,6 +462,26 @@ async fn handle_incoming_messages(
                         };
 
                         let encrypted_msg = encrypt_message(&key, &view_msg)?;
+                        let mut writer_lock = writer.lock().await;
+                        writer_lock.write_all(&encrypted_msg).await?;
+                        writer_lock.flush().await?;
+                    }
+                    ServerCommand::ChangeColor => {
+                        // Change the client's color
+                        let new_color = random_color();
+                        if let Some(client) = state.lock().await.get_mut(name) {
+                            client.color = new_color.clone();
+                        }
+
+                        // Send a confirmation message to the client
+                        let color_msg = Message {
+                            name: Some("Server".to_string()),
+                            timestamp: Some(get_timestamp()),
+                            message: Some(format!("Color changed to {:?}", new_color)),
+                            color: Some(new_color),
+                        };
+
+                        let encrypted_msg = encrypt_message(&key, &color_msg)?;
                         let mut writer_lock = writer.lock().await;
                         writer_lock.write_all(&encrypted_msg).await?;
                         writer_lock.flush().await?;

@@ -80,6 +80,7 @@ pub enum ServerCommand {
     ViewMessages,
     ViewHistory,
     ViewKey,
+    ChangeColor,
     Invalid,
 }
 
@@ -90,6 +91,7 @@ impl ServerCommand {
             "/view-messages" => ServerCommand::ViewMessages,
             "/view-key" => ServerCommand::ViewKey,
             "/view-history" => ServerCommand::ViewHistory,
+            "/change-color" => ServerCommand::ChangeColor,
             _ => ServerCommand::Invalid,
         }
     }
