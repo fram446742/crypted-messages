@@ -1,14 +1,7 @@
-# Configura la ruta al proyecto en formato de ruta de Docker
+# Nombre del proyecto
 PROJECT_NAME = crypted-messages
 
-# Utiliza una ruta relativa para el proyecto
-# Depending on the OS
-# ifeq ($(OS),Windows_NT)
-# 	PROJECT_DIR := $(CD)/
-# else
-# 	PROJECT_DIR := $(PWD)/
-# endif
-
+# Directorio del proyecto
 PROJECT_DIR = $(CURDIR)/
 
 # Lista de objetivos
