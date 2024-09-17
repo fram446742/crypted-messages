@@ -1,6 +1,8 @@
 #!/bin/bash
+set -e
+
 # Check if 'cargo' command exists
-if command -v cargo &>/dev/null; then
+if command -v cargo >/dev/null 2>&1; then
     echo "'cargo' is already installed."
 else
     echo "You need to install Rust and Cargo first."
@@ -8,13 +10,13 @@ else
     exit 1
 fi
 
-# chech if 'cross' command exists
-if command -v cross &>/dev/null; then
+# Check if 'cross' command exists
+if command -v cross >/dev/null 2>&1; then
     echo "'cross' is already installed."
 else
-    echo "Installing cross..."
+    echo "Installing cross using Cargo..."
     cargo install cross
-    if command -v cross &>/dev/null; then
+    if command -v cross >/dev/null 2>&1; then
         echo "'cross' installed successfully."
     else
         echo "Failed to install 'cross'."
@@ -24,7 +26,7 @@ fi
 
 # Build for the current target
 cargo build --release
-if [[ $? -eq 0 ]]; then
+if [ $? -eq 0 ]; then
     echo "Current Build successful."
 else
     echo "Current Build failed."
@@ -32,12 +34,13 @@ else
 fi
 
 # Check if 'gcc' command exists
-if command -v gcc &>/dev/null; then
+if command -v gcc >/dev/null 2>&1; then
     echo "'gcc' is already installed."
 else
-    echo "Installing gcc..."
-    sudo apt update && sudo apt install -y build-essential
-    if command -v gcc &>/dev/null; then
+    echo "Installing gcc using apt..."
+    sudo apt update
+    sudo apt install -y build-essential
+    if command -v gcc >/dev/null 2>&1; then
         echo "'gcc' installed successfully."
     else
         echo "Failed to install 'gcc'."
@@ -46,12 +49,12 @@ else
 fi
 
 # Check if 'make' command exists
-if command -v make &>/dev/null; then
+if command -v make >/dev/null 2>&1; then
     echo "'make' is already installed."
 else
-    echo "Installing make..."
+    echo "Installing make using apt..."
     sudo apt install -y make
-    if command -v make &>/dev/null; then
+    if command -v make >/dev/null 2>&1; then
         echo "'make' installed successfully."
     else
         echo "Failed to install 'make'."
@@ -60,7 +63,7 @@ else
 fi
 
 # Check if 'docker' command exists
-if command -v docker &>/dev/null; then
+if command -v docker >/dev/null 2>&1; then
     echo "'docker' is already installed."
 else
     echo "You need to install Docker first."
@@ -68,54 +71,20 @@ else
     exit 1
 fi
 
-successful_targets=()
+# Execute the Makefile
+make compile
 
-targets=(
-    "x86_64-unknown-linux-musl"
-    "x86_64-unknown-linux-gnu"
-    "x86_64-apple-darwin"
-    "aarch64-unknown-linux-gnu"
-    "aarch64-unknown-linux-musl"
-    "aarch64-apple-darwin"
-)
-
-for target in "${targets[@]}"; do
-    echo "Building for target: $target"
-    if docker run --rm \
-        --volume "${PWD}/sample":/root/src \
-        --workdir /root/src \
-        joseluisq/rust-linux-darwin-builder:1.68.1 \
-        sh -c "cargo build --release --target $target"; then
-        echo "Build for $target successful."
-        successful_targets+=("$target")
-    else
-        echo "Build for $target failed."
-    fi
-done
-
-if [ ${#successful_targets[@]} -gt 0 ]; then
-    echo "Successful builds:"
-    for target in "${successful_targets[@]}"; do
-        echo "- $target"
-    done
-else
-    echo "No successful builds."
-fi
-
-# # Use Makefile to manage additional builds
-# make compile
-
-# Once the build is complete, ask the user if they want to copy the executables to the 'bin' directory
+# Ask the user if they want to copy the executables to the 'bin' directory
 read -p "Do you want to copy the executables to the 'bin' directory? [y/n]: " copy
 if [[ "$copy" == "y" ]]; then
-    if [[ -d bin ]]; then
+    if [ -d bin ]; then
         rm -rf bin/*
     else
         mkdir bin
     fi
 
-    # Search for all executables named crypted-messages* and copy them to the 'bin' directory
-    find target -type f -name "crypted-messages*" -exec cp {} bin/ \;
+    # Search for all executables like crypted-messages* and copy them to the 'bin' directory
+    find target -type f -name "crypted-messages*" ! -name "*.d" -exec cp {} bin/ \;
 
     echo "Executables copied to the 'bin' directory."
 else

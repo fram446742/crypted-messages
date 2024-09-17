@@ -2,6 +2,13 @@
 PROJECT_NAME = crypted-messages
 
 # Utiliza una ruta relativa para el proyecto
+# Depending on the OS
+# ifeq ($(OS),Windows_NT)
+# 	PROJECT_DIR := $(CD)/
+# else
+# 	PROJECT_DIR := $(PWD)/
+# endif
+
 PROJECT_DIR = $(CURDIR)/
 
 # Lista de objetivos
@@ -25,7 +32,7 @@ update-image:
 # Actualiza rustc en el contenedor
 update-rustc:
 	@docker run --rm -it \
-		-v $(PROJECT_DIR):/drone/src \
+		-v $(PROJECT_DIR)/:/drone/src \
 		-w /drone/src \
 		joseluisq/rust-linux-darwin-builder:latest \
 		rustup update
@@ -46,7 +53,7 @@ cross-compile:
 	unsuccessful_targets="" && \
 	for target in $(TARGETS); do \
 		echo -e "$(YELLOW)Building for $$target...$(RESET)" && \
-		if cargo build --manifest-path=drone/src/Cargo.toml --release --target $$target; then \
+		if cargo build --release --target $$target; then \
 			successful_targets="$$successful_targets $$target"; \
 			binary_path=target/$$target/release/$(PROJECT_NAME); \
 			if [ -f $$binary_path ]; then \

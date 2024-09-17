@@ -126,6 +126,23 @@ if /i "%targets%"=="w" (
         echo GNU Build failed.
     )
 
+    REM Check if 'docker' command exists
+    where docker >nul 2>nul
+    if %errorlevel% == 0 (
+        echo 'docker' is already installed.
+    ) else (
+        echo Installing Docker using Chocolatey...
+        choco install docker-desktop -y
+        where docker >nul 2>nul
+        if %errorlevel% == 0 (
+            echo 'docker' installed successfully.
+        ) else (
+            echo Failed to install 'docker'.
+            pause
+            exit /b 1
+        )
+    )
+
     REM Check if 'make' command exists
     where make >nul 2>nul
     if %errorlevel% == 0 (
