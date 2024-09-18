@@ -74,8 +74,15 @@ fi
 # Execute the Makefile
 make compile
 
-# Ask the user if they want to copy the executables to the 'bin' directory
-read -p "Do you want to copy the executables to the 'bin' directory? [y/n]: " copy
+# Check if the shell is interactive
+if [[ -t 0 ]]; then
+    # Interactive shell, ask the user
+    read -p "Do you want to copy the executables to the 'bin' directory? [y/n]: " copy
+else
+    # Non-interactive shell, automatically copy the executables
+    copy="y"
+fi
+
 if [[ "$copy" == "y" ]]; then
     if [ -d bin ]; then
         rm -rf bin/*
