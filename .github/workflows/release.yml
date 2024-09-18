@@ -1,0 +1,66 @@
+name: Release on Cargo.toml version change
+
+on:
+  push:
+    paths:
+      - 'Cargo.toml'
+  pull_request:
+    paths:
+      - 'Cargo.toml'
+
+jobs:
+  check_version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v3
+
+      - name: Install `toml` CLI for parsing Cargo.toml
+        run: sudo apt-get install -y python3-pip && pip3 install toml
+
+      - name: Get the current version from Cargo.toml
+        id: get_version
+        run: |
+          current_version=$(python3 -c "import toml; print(toml.load('Cargo.toml')['package']['version'])")
+          echo "current_version=$current_version" >> $GITHUB_ENV
+
+      - name: Get the previous version from Cargo.toml
+        id: get_previous_version
+        run: |
+          git fetch --depth=2 origin main
+          previous_version=$(git show origin/main:Cargo.toml | python3 -c "import toml, sys; print(toml.load(sys.stdin)['package']['version'])")
+          echo "previous_version=$previous_version" >> $GITHUB_ENV
+
+      - name: Compare versions
+        id: compare_versions
+        run: |
+          echo "Current version: ${{ env.current_version }}"
+          echo "Previous version: ${{ env.previous_version }}"
+          
+          if [ "${{ env.current_version }}" != "${{ env.previous_version }}" ]; then
+            echo "Version changed from ${{ env.previous_version }} to ${{ env.current_version }}."
+            echo "version_changed=true" >> $GITHUB_ENV
+          else:
+            echo "No version change detected."
+            echo "version_changed=false" >> $GITHUB_ENV
+
+  create_release:
+    needs: check_version
+    runs-on: ubuntu-latest
+    if: env.version_changed == 'true'
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # GitHub automatically provides this secret
+        with:
+          tag_name: v${{ env.current_version }}  # Use the new version as the tag name
+          release_name: v${{ env.current_version }}
+          body: |
+            ## Release v${{ env.current_version }}
+            This release was automatically created based on the version change in `Cargo.toml`.
+          draft: false  # Set to true if you want to create a draft release
+          prerelease: false  # Set to true if this is a pre-release
