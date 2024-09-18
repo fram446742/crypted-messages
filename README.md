@@ -2,7 +2,7 @@
 
 Welcome to Crypted Messages! This repository contains a basic implementation of a chat messaging app using the console.
 
-[![Rust](https://github.com/fram446742/crypted-messages/actions/workflows/rust.yml/badge.svg)](https://github.com/fram446742/crypted-messages/actions/workflows/rust.yml) [![Makefile CI](https://github.com/fram446742/crypted-messages/actions/workflows/makefile.yml/badge.svg)](https://github.com/fram446742/crypted-messages/actions/workflows/makefile.yml)
+[![Rust](https://github.com/fram446742/crypted-messages/actions/workflows/rust.yml/badge.svg)](https://github.com/fram446742/crypted-messages/actions/workflows/rust.yml) [![Makefile CI](https://github.com/fram446742/crypted-messages/actions/workflows/makefile.yml/badge.svg)](https://github.com/fram446742/crypted-messages/actions/workflows/makefile.yml)[![Release on Cargo.toml version change](https://github.com/fram446742/crypted-messages/actions/workflows/release.yml/badge.svg)](https://github.com/fram446742/crypted-messages/actions/workflows/release.yml)
 
 ## Features
 
