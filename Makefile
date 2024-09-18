@@ -24,7 +24,7 @@ update-image:
 
 # Actualiza rustc en el contenedor
 update-rustc:
-	@docker run --rm -it \
+	@docker run --rm \
 		-v $(PROJECT_DIR)/:/drone/src \
 		-w /drone/src \
 		joseluisq/rust-linux-darwin-builder:latest \
@@ -33,7 +33,7 @@ update-rustc:
 
 # Compilar todos los objetivos
 compile: update-image update-rustc
-	@docker run --rm -it \
+	@docker run --rm \
 		-v $(PROJECT_DIR):/drone/src \
 		-w /drone/src \
 		joseluisq/rust-linux-darwin-builder:latest \
