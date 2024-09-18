@@ -15,16 +15,15 @@ use crate::tools::{
 };
 use crate::tools::{get_ip, get_port, random_color, AdressMode};
 
-type SharedState = Arc<Mutex<HashMap<String, Client>>>;
+type SharedState = Arc<Mutex<HashMap<usize, Client>>>;
 pub type AssignedColors = Arc<Mutex<HashSet<SerdeColor>>>;
 type Key = Arc<String>;
 type SudoKey = Arc<String>;
 type History = Arc<Mutex<VecDeque<Message>>>;
 
-// TODO: Fix the timestamp to show a more human-readable format
 const SUDO_MESSAGE: &str = "
 You have been granted sudo privileges.
-Use /close to close the connection.
+Use /change-color to change your color.
 Use /view-messages to view your messages.
 Use /view-history to view global chat history.
 Use /view-key to view the AES key.
@@ -145,22 +144,39 @@ async fn handle_client(
     let mut reader = BufReader::new(reader);
     let writer = Arc::new(Mutex::new(writer));
 
-    // Perform the handshake with a 10-second timeout
-    let name = perform_handshake(&key, &mut reader).await?;
+    // Generate a unique client ID
+    let id = get_client_id(&state).await;
 
-    let color = assign_random_color(&state, &assigned_colors, &name).await?;
+    // Perform the handshake with the client to get the initial name
+    let initial_name = perform_handshake(&key, &mut reader).await?;
+
+    // Collect all names under lock, but release lock afterward for name generation
+    let existing_names: Vec<String> = {
+        let state_guard = state.lock().await;
+        state_guard
+            .values()
+            .map(|client| client.name.clone())
+            .collect()
+    };
+
+    // Generate a unique name by appending a counter if necessary
+    let mut name = initial_name.clone();
+    let mut counter = 1;
+    while existing_names.contains(&name) {
+        name = format!("{}-{}", initial_name, counter);
+        counter += 1;
+    }
+
+    // Now the name is guaranteed to be unique, continue with client registration
+
+    let color = assign_random_color(&state, &assigned_colors, &id).await?;
 
     // Register the client with an empty message history
     let (tx, rx) = broadcast::channel(10);
-    let client = Client {
-        name: name.clone(),
-        tx,
-        color, // Default color, can be customized
-        messages: VecDeque::new(),
-        sudo: false,
-    };
-    state.lock().await.insert(name.clone(), client.clone());
-    println!("{} connected", name);
+    let client = Client::new(name.clone(), tx, color);
+
+    state.lock().await.insert(id, client.clone());
+    println!("{} connected (ID: {})", name, id);
 
     // Send handshake response and welcome message
     send_handshake_response(&key, &name, &writer, color).await?;
@@ -175,6 +191,7 @@ async fn handle_client(
         &key,
         &state,
         &name,
+        &id,
         &mut reader,
         &writer_clone,
         sudo_key,
@@ -184,7 +201,7 @@ async fn handle_client(
     .await;
 
     // Clean up the client on disconnect
-    cleanup_client(state, &name).await;
+    cleanup_client(state, &name, &id).await;
 
     // Wait for the message task to finish
     tx_task.await?;
@@ -192,11 +209,17 @@ async fn handle_client(
     result
 }
 
+// Get the client ID
+async fn get_client_id(state: &SharedState) -> usize {
+    let state_guard = state.lock().await;
+    state_guard.len()
+}
+
 // Assign a unique random color to each client
 async fn assign_random_color(
     state: &SharedState,
     assigned_colors: &AssignedColors, // External variable for assigned colors
-    name: &str,
+    id: &usize,
 ) -> Result<SerdeColor, Box<dyn std::error::Error + Send + Sync>> {
     let mut state_lock = state.lock().await;
     let mut assigned_colors_lock = assigned_colors.lock().await;
@@ -209,7 +232,7 @@ async fn assign_random_color(
     }
 
     // Assign the color to the client in the state
-    if let Some(client) = state_lock.get_mut(name) {
+    if let Some(client) = state_lock.get_mut(id) {
         client.color = chosen_color.clone();
         assigned_colors_lock.insert(chosen_color.clone());
     }
@@ -224,7 +247,7 @@ async fn perform_handshake(
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let mut buffer = [0u8; 1024];
 
-    match timeout(Duration::from_secs(10), reader.read(&mut buffer)).await {
+    match timeout(Duration::from_secs(60), reader.read(&mut buffer)).await {
         Ok(Ok(n)) if n > 0 => {
             let handshake = decrypt_handshake(&key, &buffer[..n])?;
             Ok(handshake.name)
@@ -259,6 +282,7 @@ async fn handle_incoming_messages(
     key: &Key,
     state: &SharedState,
     name: &str,
+    id: &usize,
     reader: &mut BufReader<tokio::io::ReadHalf<TcpStream>>,
     writer: &Arc<Mutex<tokio::io::WriteHalf<TcpStream>>>,
     sudo_key: SudoKey,
@@ -271,257 +295,60 @@ async fn handle_incoming_messages(
         if n == 0 {
             break; // Client disconnected
         }
+
         let decrypted_msg = decrypt_message(&key, &buffer[..n])?;
         println!("{}: {:?}", name, decrypted_msg);
 
         // Handle the /sudo command
         if let Some(message) = &decrypted_msg.message {
             if message.starts_with("/sudo") {
-                let parts: Vec<&str> = message.split_whitespace().collect();
-                if parts.len() == 2 && parts[1] == *sudo_key {
-                    // Grant sudo privileges
-                    if let Some(client) = state.lock().await.get_mut(name) {
-                        client.sudo = true;
-                    }
-
-                    // Send a confirmation message to the client
-                    let sudo_msg = Message {
-                        name: Some("Server".to_string()),
-                        timestamp: Some(get_timestamp()),
-                        message: Some(SUDO_MESSAGE.to_string()),
-                        color: Some(color),
-                    };
-
-                    let encrypted_msg = encrypt_message(&key, &sudo_msg)?;
-                    let mut writer_lock = writer.lock().await;
-                    writer_lock.write_all(&encrypted_msg).await?;
-                    writer_lock.flush().await?;
-
-                    println!("{} granted sudo privileges", name);
-                } else {
-                    // Send error message for incorrect sudo password
-                    let error_msg = Message {
-                        name: Some("Server".to_string()),
-                        timestamp: Some(get_timestamp()),
-                        message: Some("Incorrect sudo password".to_string()),
-                        color: Some(SerdeColor::Red),
-                    };
-
-                    let encrypted_msg = encrypt_message(&key, &error_msg)?;
-                    let mut writer_lock = writer.lock().await;
-                    writer_lock.write_all(&encrypted_msg).await?;
-                    writer_lock.flush().await?;
-
-                    println!("{} provided incorrect sudo password", name);
-                }
-                continue; // Do not broadcast, move to the next message
+                handle_sudo_command(
+                    message,
+                    name,
+                    id,
+                    sudo_key.clone(),
+                    state,
+                    key,
+                    writer,
+                    color,
+                )
+                .await?;
+                continue;
             }
         }
 
-        // Handle other commands if sudo is granted
-        if let Some(client) = state.lock().await.get(name) {
-            if client.sudo {
-                let message_content = decrypted_msg.message.clone().unwrap_or_default();
-                match ServerCommand::from_str(&message_content) {
-                    ServerCommand::Close => {
-                        println!("{} issued /close command", name);
+        let client_sudo = {
+            let state_guard = state.lock().await;
+            state_guard
+                .get(id)
+                .map(|client| client.sudo)
+                .unwrap_or(false)
+        };
 
-                        let close_signal = Message {
-                            name: Some("Server".to_string()),
-                            timestamp: Some(get_timestamp()),
-                            message: Some("CLOSE_SIGNAL".to_string()),
-                            color: Some(color),
-                        };
-
-                        let encrypted_signal = encrypt_message(&key, &close_signal)?;
-                        let mut writer_lock = writer.lock().await;
-                        writer_lock.write_all(&encrypted_signal).await?;
-                        writer_lock.flush().await?;
-
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                        break; // Close the connection
-                    }
-                    ServerCommand::ViewMessages => {
-                        // Display message history to the client
-                        let client_messages = client
-                            .messages
-                            .iter()
-                            .map(|msg| {
-                                format!(
-                                    "{}: {}",
-                                    msg.timestamp.clone().unwrap_or("Unknown time".to_string()),
-                                    msg.message.as_deref().unwrap_or("")
-                                )
-                            })
-                            .collect::<Vec<String>>()
-                            .join("\n");
-
-                        let view_msg = Message {
-                            name: Some("Server".to_string()),
-                            timestamp: Some(get_timestamp()),
-                            message: Some(client_messages),
-                            color: Some(color),
-                        };
-
-                        let encrypted_msg = encrypt_message(&key, &view_msg)?;
-                        let mut writer_lock = writer.lock().await;
-                        writer_lock.write_all(&encrypted_msg).await?;
-                        writer_lock.flush().await?;
-                    }
-                    ServerCommand::ViewHistory => {
-                        // Display global message history to the client
-                        let global_messages = history
-                            .lock()
-                            .await
-                            .iter()
-                            .map(|msg| {
-                                format!(
-                                    "{}: {}: {}",
-                                    msg.name.clone().unwrap_or("Unknown".to_string()),
-                                    msg.timestamp.clone().unwrap_or("Unknown time".to_string()),
-                                    msg.message.as_deref().unwrap_or("")
-                                )
-                            })
-                            .collect::<Vec<String>>()
-                            .join("\n");
-
-                        let view_msg = Message {
-                            name: None,
-                            timestamp: Some(get_timestamp()),
-                            message: Some(global_messages),
-                            color: Some(color),
-                        };
-
-                        let encrypted_msg = encrypt_message(&key, &view_msg)?;
-                        let mut writer_lock = writer.lock().await;
-                        writer_lock.write_all(&encrypted_msg).await?;
-                        writer_lock.flush().await?;
-                    }
-                    ServerCommand::ViewKey => {
-                        // Display the AES key to the client
-                        let key_msg = Message {
-                            name: Some("Server".to_string()),
-                            timestamp: Some(get_timestamp()),
-                            message: Some(format!("AES Key: {}", key)),
-                            color: Some(color),
-                        };
-
-                        let encrypted_msg = encrypt_message(&key, &key_msg)?;
-                        let mut writer_lock = writer.lock().await;
-                        writer_lock.write_all(&encrypted_msg).await?;
-                        writer_lock.flush().await?;
-                    }
-                    ServerCommand::ChangeColor => {
-                        // Change the client's color
-                        let new_color = random_color();
-                        if let Some(client) = state.lock().await.get_mut(name) {
-                            client.color = new_color.clone();
-                        }
-
-                        // Send a confirmation message to the client
-                        let color_msg = Message {
-                            name: Some("Server".to_string()),
-                            timestamp: Some(get_timestamp()),
-                            message: Some(format!("Color changed to {:?}", new_color)),
-                            color: Some(new_color),
-                        };
-
-                        let encrypted_msg = encrypt_message(&key, &color_msg)?;
-                        let mut writer_lock = writer.lock().await;
-                        writer_lock.write_all(&encrypted_msg).await?;
-                        writer_lock.flush().await?;
-                    }
-                    ServerCommand::Invalid => {
-                        // Invalid command, just continue without broadcasting
-                    }
-                }
-                // continue; // Do not broadcast any command
+        // Handle sudo or non-sudo commands
+        if let Some(message) = decrypted_msg.message.clone() {
+            if client_sudo {
+                handle_sudo_commands(
+                    &message,
+                    name,
+                    id,
+                    state,
+                    history.clone(),
+                    key,
+                    writer,
+                    color,
+                )
+                .await?;
             } else {
-                let message_content = decrypted_msg.message.clone().unwrap_or_default();
-                match ServerCommand::from_str(&message_content) {
-                    ServerCommand::ViewMessages => {
-                        // Display message history to the client
-                        let client_messages = client
-                            .messages
-                            .iter()
-                            .map(|msg| {
-                                format!(
-                                    "{}: {}",
-                                    msg.timestamp.clone().unwrap_or("Unknown time".to_string()),
-                                    msg.message.as_deref().unwrap_or("")
-                                )
-                            })
-                            .collect::<Vec<String>>()
-                            .join("\n");
-
-                        let view_msg = Message {
-                            name: Some("Server".to_string()),
-                            timestamp: Some(get_timestamp()),
-                            message: Some(client_messages),
-                            color: Some(color),
-                        };
-
-                        let encrypted_msg = encrypt_message(&key, &view_msg)?;
-                        let mut writer_lock = writer.lock().await;
-                        writer_lock.write_all(&encrypted_msg).await?;
-                        writer_lock.flush().await?;
-                    }
-                    ServerCommand::ChangeColor => {
-                        // Change the client's color
-                        let new_color = random_color();
-                        if let Some(client) = state.lock().await.get_mut(name) {
-                            client.color = new_color.clone();
-                        }
-
-                        // Send a confirmation message to the client
-                        let color_msg = Message {
-                            name: Some("Server".to_string()),
-                            timestamp: Some(get_timestamp()),
-                            message: Some(format!("Color changed to {:?}", new_color)),
-                            color: Some(new_color),
-                        };
-
-                        let encrypted_msg = encrypt_message(&key, &color_msg)?;
-                        let mut writer_lock = writer.lock().await;
-                        writer_lock.write_all(&encrypted_msg).await?;
-                        writer_lock.flush().await?;
-                    }
-                    ServerCommand::Close => {
-                        println!("{} issued /close command", name);
-
-                        let close_signal = Message {
-                            name: Some("Server".to_string()),
-                            timestamp: Some(get_timestamp()),
-                            message: Some("CLOSE_SIGNAL".to_string()),
-                            color: Some(color),
-                        };
-
-                        let encrypted_signal = encrypt_message(&key, &close_signal)?;
-                        let mut writer_lock = writer.lock().await;
-                        writer_lock.write_all(&encrypted_signal).await?;
-                        writer_lock.flush().await?;
-
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                        break; // Close the connection
-                    }
-                    _ => (),
-                }
+                handle_non_sudo_commands(&message, name, id, state, key, writer, color).await?;
             }
         }
 
-        // If the message is not a command, broadcast it
+        // Broadcast non-command messages
         if let Some(message) = &decrypted_msg.message {
             if !message.starts_with("/") {
-                // Store the message in the client's message history
-                if let Some(client) = state.lock().await.get_mut(name) {
-                    client.messages.push_back(decrypted_msg.clone());
-                }
-
-                // Store the message in the global history
-                history.lock().await.push_back(decrypted_msg.clone());
-
-                // Broadcast the message to other clients
-                broadcast_message(&key, &state, &name, decrypted_msg).await?;
+                store_message_in_history(&decrypted_msg, id, state, history.clone()).await?;
+                broadcast_message(&key, &state, id, decrypted_msg).await?;
             }
         }
     }
@@ -529,9 +356,196 @@ async fn handle_incoming_messages(
     Ok(())
 }
 
+// Handles the /sudo command
+async fn handle_sudo_command(
+    message: &str,
+    name: &str,
+    id: &usize,
+    sudo_key: SudoKey,
+    state: &SharedState,
+    key: &Key,
+    writer: &Arc<Mutex<tokio::io::WriteHalf<TcpStream>>>,
+    color: SerdeColor,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let parts: Vec<&str> = message.split_whitespace().collect();
+    if parts.len() == 2 && parts[1] == *sudo_key {
+        let mut state_guard = state.lock().await;
+        if let Some(client) = state_guard.get_mut(id) {
+            client.sudo = true;
+        }
+
+        send_server_message(writer, None, key, SUDO_MESSAGE, color).await?;
+        println!("{} granted sudo privileges", name);
+    } else {
+        send_server_message(
+            writer,
+            None,
+            key,
+            "Incorrect sudo password",
+            SerdeColor::Red,
+        )
+        .await?;
+        println!("{} provided incorrect sudo password", name);
+    }
+    Ok(())
+}
+
+// Sends a message from the server to the client
+async fn send_server_message(
+    writer: &Arc<Mutex<tokio::io::WriteHalf<TcpStream>>>,
+    name: Option<&str>,
+    key: &Key,
+    message: &str,
+    color: SerdeColor,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let msg = Message {
+        name: Some(name.unwrap_or("Server").to_string()),
+        timestamp: Some(get_timestamp()),
+        message: Some(message.to_string()),
+        color: Some(color),
+    };
+
+    let encrypted_msg = encrypt_message(&key, &msg)?;
+    let mut writer_lock = writer.lock().await;
+    writer_lock.write_all(&encrypted_msg).await?;
+    writer_lock.flush().await?;
+    Ok(())
+}
+
+// Handles commands when sudo privileges are granted
+async fn handle_sudo_commands(
+    message: &str,
+    name: &str,
+    id: &usize,
+    state: &SharedState,
+    history: History,
+    key: &Key,
+    writer: &Arc<Mutex<tokio::io::WriteHalf<TcpStream>>>,
+    color: SerdeColor,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    match ServerCommand::from_str(message) {
+        ServerCommand::Close => handle_close_command(name, key, writer, color).await?,
+        ServerCommand::ViewMessages => {
+            let client_messages = get_client_message_history(id, state).await;
+            send_server_message(writer, None, key, &client_messages, color).await?;
+        }
+        ServerCommand::ViewHistory => {
+            let name = "Your chat history: \n";
+            let global_messages = get_global_message_history(history).await;
+            send_server_message(writer, Some(name), key, &global_messages, color).await?;
+        }
+        ServerCommand::ViewKey => {
+            send_server_message(writer, None, key, &format!("AES Key: {}", key), color).await?;
+        }
+        ServerCommand::ChangeColor => {
+            let color = change_client_color(id, state).await?;
+            send_server_message(writer, None, key, "Color changed", color).await?;
+        }
+        _ => (),
+    }
+    Ok(())
+}
+
+// Handles non-sudo commands
+async fn handle_non_sudo_commands(
+    message: &str,
+    name: &str,
+    id: &usize,
+    state: &SharedState,
+    key: &Key,
+    writer: &Arc<Mutex<tokio::io::WriteHalf<TcpStream>>>,
+    color: SerdeColor,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    match ServerCommand::from_str(message) {
+        ServerCommand::ViewMessages => {
+            let name = "Your chat history: \n";
+            let client_messages = get_client_message_history(id, state).await;
+            send_server_message(writer, Some(name), key, &client_messages, color).await?;
+        }
+        ServerCommand::ChangeColor => {
+            let color = change_client_color(id, state).await?;
+            send_server_message(writer, None, key, "COLOR_CHANGE", color).await?;
+        }
+        ServerCommand::Close => handle_close_command(name, key, writer, color).await?,
+        _ => (),
+    }
+    Ok(())
+}
+
+// Handles the /close command
+async fn handle_close_command(
+    name: &str,
+    key: &Key,
+    writer: &Arc<Mutex<tokio::io::WriteHalf<TcpStream>>>,
+    color: SerdeColor,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    println!("{} issued /close command", name);
+
+    send_server_message(writer, None, key, "CLOSE_CONNECTION", color).await?;
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    Ok(())
+}
+
+// Fetches the client's message history
+async fn get_client_message_history(id: &usize, state: &SharedState) -> String {
+    let state_guard = state.lock().await;
+    if let Some(client) = state_guard.get(id) {
+        return match client.get_messages() {
+            Ok(messages) => messages,
+            Err(_) => "No message history".to_string(),
+        };
+    }
+    format!("Couldn't get client with id {}", id)
+}
+
+// Fetches the global message history
+async fn get_global_message_history(history: History) -> String {
+    let history_guard = history.lock().await;
+    history_guard
+        .iter()
+        .map(|msg| {
+            format!(
+                "{}: {}: {}",
+                msg.name.clone().unwrap_or("Unknown".to_string()),
+                msg.timestamp.clone().unwrap_or("Unknown time".to_string()),
+                msg.message.as_deref().unwrap_or("")
+            )
+        })
+        .collect::<Vec<String>>()
+        .join("\n")
+}
+
+// Changes the client's color
+async fn change_client_color(
+    id: &usize,
+    state: &SharedState,
+) -> Result<SerdeColor, Box<dyn std::error::Error + Send + Sync>> {
+    let mut state_guard = state.lock().await;
+    let color = random_color();
+    if let Some(client) = state_guard.get_mut(id) {
+        client.color = color;
+    }
+    Ok(color)
+}
+
+// Stores the message in both client and global history
+async fn store_message_in_history(
+    message: &Message,
+    id: &usize,
+    state: &SharedState,
+    history: History,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut state_guard = state.lock().await;
+    if let Some(client) = state_guard.get_mut(id) {
+        client.add_message(message.clone());
+    }
+    history.lock().await.push_back(message.clone());
+    Ok(())
+}
+
 // Clean up the client on disconnect
-async fn cleanup_client(state: SharedState, name: &str) {
-    state.lock().await.remove(name);
+async fn cleanup_client(state: SharedState, name: &str, id: &usize) {
+    state.lock().await.remove(id);
     println!("{} disconnected", name);
 }
 
@@ -580,14 +594,14 @@ async fn send_welcome_message(
 async fn broadcast_message(
     key: &Key,
     state: &SharedState,
-    sender_name: &str,
+    sender_id: &usize,
     msg: Message,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let encrypted_message = encrypt_message(&key, &msg)?;
 
     let state = state.lock().await;
-    for (client_name, client) in state.iter() {
-        if client_name != sender_name {
+    for (client_id, client) in state.iter() {
+        if client_id != sender_id {
             let _ = client.tx.send(encrypted_message.clone());
         }
     }

@@ -75,6 +75,48 @@ pub struct Client {
     pub sudo: bool,
 }
 
+impl Client {
+    pub fn new(name: String, tx: broadcast::Sender<Vec<u8>>, color: SerdeColor) -> Self {
+        Client {
+            name,
+            tx,
+            color,
+            messages: VecDeque::new(),
+            sudo: false,
+        }
+    }
+
+    pub fn add_message(&mut self, message: Message) {
+        self.messages.push_back(message);
+    }
+
+    pub fn get_messages(&self) -> Result<String> {
+        if self.messages.is_empty() {
+            return Err(anyhow!("No messages available"));
+        }
+
+        let messages = self
+            .messages
+            .iter()
+            .map(|msg| {
+                format!(
+                    "{}: {}",
+                    msg.timestamp.clone().unwrap_or("Unknown".to_string()),
+                    msg.message.as_deref().unwrap_or("")
+                )
+            })
+            .collect::<Vec<String>>()
+            .join("\n");
+
+        Ok(messages)
+    }
+
+    #[allow(dead_code)]
+    pub fn clear_messages(&mut self) {
+        self.messages.clear();
+    }
+}
+
 pub enum ServerCommand {
     Close,
     ViewMessages,
@@ -376,7 +418,10 @@ pub fn get_timestamp() -> String {
     let minute = local.minute();
     let second = local.second();
 
-    format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, hour, minute, second)
+    format!(
+        "{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+        year, month, day, hour, minute, second
+    )
 }
 
 pub fn get_user_input(prompt: Option<&str>) -> String {

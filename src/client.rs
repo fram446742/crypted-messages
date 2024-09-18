@@ -29,13 +29,16 @@ const BUFFER_SIZE: usize = 1024;
 const CHUNK_SIZE: usize = 1024; // Define your chunk size
 const CHUNKED_SIGNAL: &str = "START_CHUNK";
 const FINAL_CHUNK_SIGNAL: &str = "END_CHUNK";
-const CLOSE_SIGNAL: &str = "CLOSE_SIGNAL";
+const CLOSE_SIGNAL: &str = "CLOSE_CONNECTION";
+const COLOR_CHANGE_SIGNAL: &str = "COLOR_CHANGE";
+// const NAME_CHANGE_SIGNAL: &str = "NAME_CHANGE";
 const CONNECTION_TIMEOUT: u64 = 30;
 const RETRY_DELAY: u64 = 3; // Delay between connection attempts (in seconds)
 const HELP_MESSAGE: &str = "
 Commands:
 /toggle-color - Toggle color mode
-Use /view-messages to view your messages.
+/change-color to change your color
+/view-messages to view your messages.
 /help - Show this help message
 /sudo (password) - Be granted admin privileges
 /close - Close gracefully the connection
@@ -87,11 +90,18 @@ pub async fn main_client() -> Result<(), Box<dyn StdError + Send + Sync>> {
 
     let mut chunk_buffer = VecDeque::new();
 
+    let instance_clone = instance.clone();
+
     // Task to handle incoming server messages
     spawn(async move {
-        if let Err(e) =
-            handle_incoming_messages(key_clone, &mut reader, &mut chunk_buffer, color_bool_clone)
-                .await
+        if let Err(e) = handle_incoming_messages(
+            key_clone,
+            &mut reader,
+            &mut chunk_buffer,
+            color_bool_clone,
+            &instance_clone,
+        )
+        .await
         {
             eprintln!("Error handling incoming messages: {:?}", e);
         }
@@ -143,6 +153,9 @@ async fn handle_handshake_response(
                 instance.lock().await.1 = handshake.color.unwrap_or(SerdeColor::Red);
             } else {
                 eprintln!("Handshake name mismatch");
+                println!("Updating name: {}", handshake.name);
+                instance.lock().await.0 = handshake.name;
+                instance.lock().await.1 = handshake.color.unwrap_or(SerdeColor::Red);
                 return Ok(());
             }
         }
@@ -233,6 +246,7 @@ async fn handle_incoming_messages(
     reader: &mut BufReader<tokio::net::tcp::OwnedReadHalf>,
     chunk_buffer: &mut VecDeque<String>,
     color_bool: ColorBool,
+    instance: &Instance,
 ) -> Result<(), Box<dyn StdError + Send + Sync>> {
     let mut buffer = [0u8; BUFFER_SIZE];
     // let mut chunk_buffer = VecDeque::new();
@@ -292,6 +306,28 @@ async fn handle_incoming_messages(
                             // FEATURE: Add restart option
                             process::exit(0);
                         }
+                        COLOR_CHANGE_SIGNAL => {
+                            // Change the color of the client
+                            let new_color = decrypted_msg.color.unwrap_or(SerdeColor::Red);
+                            instance.lock().await.1 = new_color;
+                            let _ = print_colored_text(
+                                &format!("Color changed to {:?}", new_color),
+                                Color::from(new_color),
+                                color_bool,
+                            );
+                        }
+                        // NAME_CHANGE_SIGNAL => {
+                        //     // Change the name of the client
+                        //     let new_name = decrypted_msg
+                        //         .name
+                        //         .unwrap_or_else(|| "Unknown sender".to_string());
+                        //     instance.lock().await.0 = new_name.clone();
+                        //     let _ = print_colored_text(
+                        //         &format!("Name changed to {:?}", new_name),
+                        //         Color::from(decrypted_msg.color.unwrap_or(SerdeColor::Red)),
+                        //         color_bool,
+                        //     );
+                        // }
                         _ => {
                             if is_chunked_message {
                                 // Accumulate message as part of a chunked message
