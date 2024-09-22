@@ -1,0 +1,24 @@
+name: Rust Windows Cross Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Build project
+      uses: sevco/rust-windows-cross-action@v1.0.0
+      with:
+        args: build --release --all-features
+        credentials: ${{ secrets.GIT_CREDENTIALS }}
