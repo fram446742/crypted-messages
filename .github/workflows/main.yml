@@ -84,13 +84,15 @@ jobs:
       - name: Create artifacts directory
         run: mkdir -p artifacts
 
-      - name: Copy and rename Windows builds to artifacts
+      - name: Rename the files
         run: |
-          $projectName = "crypted-messages"  # Replace with your project name
+          ren target\x86_64-pc-windows-gnu\release\crypted-messages.exe "crypted-messages-x86_64-pc-windows-gnu.exe"
+          ren target\x86_64-pc-windows-msvc\release\crypted-messages.exe "crypted-messages-x86_64-pc-windows-msvc.exe"
+
+      - name: Copy Windows builds to artifacts
+        run: |
           copy target\x86_64-pc-windows-gnu\release\*.exe artifacts\
-          ren artifacts\*.exe "$projectName-x86_64-pc-windows-gnu.exe"
           copy target\x86_64-pc-windows-msvc\release\*.exe artifacts\
-          ren artifacts\*.exe "$projectName-x86_64-pc-windows-msvc.exe"
 
       # Upload Windows artifacts to release
       - name: Upload Windows artifacts to release
