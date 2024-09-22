@@ -38,7 +38,7 @@ jobs:
           name: linux-darwin-build
           path: artifacts
 
-  # Windows build for both GNU and MSVC targets
+  # Windows build for both GNU and MSVC targets using cargo
   build-windows:
     runs-on: windows-latest
 
@@ -51,7 +51,7 @@ jobs:
         run: |
           choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive"
 
-      - name: Set up Rust toolchain for Windows GNU and MSVC
+      - name: Set up Rust toolchain for Windows
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -60,11 +60,11 @@ jobs:
       - name: Add MSVC target
         run: rustup target add x86_64-pc-windows-msvc
 
+      - name: Add GNU target
+        run: rustup target add x86_64-pc-windows-gnu
+
       - name: Build project for Windows GNU
-        uses: sevco/rust-windows-cross-action@v1.0.0
-        with:
-          args: build --release --all-features --target x86_64-pc-windows-gnu
-          credentials: ${{ secrets.GIT_CREDENTIALS }}
+        run: cargo build --release --all-features --target x86_64-pc-windows-gnu
 
       - name: Build project for Windows MSVC
         run: cargo build --release --all-features --target x86_64-pc-windows-msvc
