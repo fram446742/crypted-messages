@@ -15,11 +15,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Get the latest tag if no tag is provided by the release
-      - name: Get latest tag
-        id: get-latest-tag
-        run: echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
-
       - name: Install build-essential
         run: sudo apt-get update && sudo apt-get install -y build-essential
 
@@ -62,11 +57,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      # Get the latest tag if no tag is provided by the release
-      - name: Get latest tag
-        id: get-latest-tag
-        run: echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
 
       # Install Visual Studio Build Tools using Chocolatey
       - name: Install Visual Studio Build Tools
