@@ -4,7 +4,6 @@ on:
   release:
     types:
       - created  # Trigger this workflow when a release is created
-
   workflow_dispatch:
 
 jobs:
@@ -12,15 +11,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Install build-essential
-      - name: Install build-essential
-        run: sudo apt-get update && sudo apt-get install -y build-essential
-      
-      # Install Rust
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
@@ -30,43 +23,47 @@ jobs:
       - name: Build project for Windows GNU
         uses: sevco/rust-windows-cross-action@v1.0.0
         with:
-            args: build --release --all-features --target x86_64-pc-windows-gnu
-            credentials: ${{ secrets.GIT_CREDENTIALS }}
-      
-      - name: Build project for Windows MSVC
-        uses: sevco/rust-windows-cross-action@v1.0.0
-        with:
-            args: build --release --all-features --target x86_64-pc-windows-msvc
-            credentials: ${{ secrets.GIT_CREDENTIALS }}
-        
-      - name: Copy files to artifacts
-        run: |
-            mkdir -p artifacts
-            cp target/x86_64-pc-windows-gnu/release/*.exe artifacts/
-            cp target/x86_64-pc-windows-msvc/release/*.exe artifacts/
+          args: build --release --all-features --target x86_64-pc-windows-gnu
+          credentials: ${{ secrets.GIT_CREDENTIALS }}
 
-      # Set up Docker (ensure Docker is available to use)
+      - name: Add MSVC toolchain and linker
+        run: sudo apt-get install -y mingw-w64
+
+      - name: Install additional dependencies for MSVC
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake
+
+      - name: Set up MSVC environment
+        run: |
+          rustup target add x86_64-pc-windows-msvc
+          rustup toolchain install stable-x86_64-pc-windows-msvc
+
+      - name: Build project for Windows MSVC
+        run: cargo build --release --all-features --target x86_64-pc-windows-msvc
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Pull the specific Docker image (for use in the shell script)
       - name: Pull Docker Image
         run: docker pull joseluisq/rust-linux-darwin-builder:latest
 
-      # Add execution permission to the shell script
       - name: Make shell script executable
         run: chmod +x ./build.sh
 
-      # Run the shell script directly (which can interact with Docker)
       - name: Run Shell Script
         run: ./build.sh
 
-      # Archive build artifacts (bin folder)
+      - name: Copy files to artifacts
+        run: |
+          mkdir -p artifacts
+          cp target/x86_64-pc-windows-gnu/release/*.exe artifacts/
+          cp target/x86_64-pc-windows-msvc/release/*.exe artifacts/
+
       - name: Archive build artifacts
         run: |
-          cp -r ./bin/* artifacts/  # Copy all generated files from bin to artifacts
+          cp -r ./bin/* artifacts/
 
-      # Upload each file in the bin directory to the release
       - name: Upload Release Assets
         run: |
           for file in ./artifacts/*; do

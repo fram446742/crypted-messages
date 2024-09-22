@@ -23,12 +23,22 @@ jobs:
         args: build --release --all-features --target x86_64-pc-windows-gnu
         credentials: ${{ secrets.GIT_CREDENTIALS }}
   
+    - name: Add MSVC toolchain and linker
+      run: sudo apt-get install -y mingw-w64
+
+    - name: Install additional dependencies for MSVC
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake
+
+    - name: Set up MSVC environment
+      run: |
+        rustup target add x86_64-pc-windows-msvc
+        rustup toolchain install stable-x86_64-pc-windows-msvc
+
     - name: Build project for Windows MSVC
-      uses: sevco/rust-windows-cross-action@v1.0.0
-      with:
-        args: build --release --all-features --target x86_64-pc-windows-msvc
-        credentials: ${{ secrets.GIT_CREDENTIALS }}
-    
+      run: cargo build --release --all-features --target x86_64-pc-windows-msvc
+
     - name: Copy files to artifacts
       run: |
         mkdir -p artifacts
