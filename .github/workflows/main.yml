@@ -1,14 +1,13 @@
+name: Rust Windows-Linux-Darwin Cross Build
+
 on:
   release:
     types:
-      - created
-  workflow_dispatch:
-    inputs:
-      tag_name:
-        description: 'Tag name for manual execution'
-        required: true
+      - created  # Trigger this workflow when a release is created
+  workflow_dispatch:  # Manual trigger
 
 jobs:
+  # Docker-based Linux-Darwin build on Ubuntu
   build-linux-darwin:
     runs-on: ubuntu-latest
 
@@ -16,14 +15,47 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Get the latest tag if no tag is provided by the release
+      - name: Get latest tag
+        id: get-latest-tag
+        run: echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
+
+      # Cache Cargo dependencies
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
       - name: Install build-essential
         run: sudo apt-get update && sudo apt-get install -y build-essential
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Cache Docker image
+      - name: Cache Docker image
+        id: cache-docker-image
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.docker-cache
+          key: ${{ runner.os }}-docker-${{ hashFiles('Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-docker-
+
       - name: Pull Docker Image
-        run: docker pull joseluisq/rust-linux-darwin-builder:latest
+        run: |
+          mkdir -p /tmp/.docker-cache
+          docker pull joseluisq/rust-linux-darwin-builder:latest
+          docker save joseluisq/rust-linux-darwin-builder:latest -o /tmp/.docker-cache/rust-linux-darwin-builder.tar
+
+      - name: Load Docker Image from Cache
+        if: steps.cache-docker-image.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/.docker-cache/rust-linux-darwin-builder.tar
 
       - name: Make shell script executable
         run: chmod +x ./build.sh
@@ -31,20 +63,24 @@ jobs:
       - name: Run Shell Script
         run: ./build.sh
 
+      # Archive build artifacts (bin folder)
       - name: Archive build artifacts
         run: |
           mkdir -p artifacts
           cp -r ./bin/* artifacts/
 
+      # Upload Linux-Darwin artifacts to release
       - name: Upload Linux-Darwin artifacts to release
         run: |
+          TAG=${{ github.event.release.tag_name || env.LATEST_TAG }}
           for file in ./artifacts/*; do
             echo "Uploading $file"
-            gh release upload ${{ github.event.release.tag_name || github.event.inputs.tag_name }} $file --clobber
+            gh release upload $TAG $file --clobber
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Windows build for both GNU and MSVC targets using cargo
   build-windows:
     runs-on: windows-latest
 
@@ -52,6 +88,32 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # Get the latest tag if no tag is provided by the release
+      - name: Get latest tag
+        id: get-latest-tag
+        run: echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
+
+      # Cache Cargo dependencies
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:\Users\runneradmin\.cargo\registry
+            C:\Users\runneradmin\.cargo\git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # Cache Rust toolchain
+      - name: Cache Rust toolchain
+        uses: actions/cache@v3
+        with:
+          path: C:\Users\runneradmin\.rustup
+          key: ${{ runner.os }}-rustup-${{ hashFiles('rust-toolchain') }}
+          restore-keys: |
+            ${{ runner.os }}-rustup-
+
+      # Install Visual Studio Build Tools using Chocolatey
       - name: Install Visual Studio Build Tools
         run: |
           choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive"
@@ -82,11 +144,13 @@ jobs:
           copy target\x86_64-pc-windows-gnu\release\*.exe artifacts\
           copy target\x86_64-pc-windows-msvc\release\*.exe artifacts\
 
+      # Upload Windows artifacts to release
       - name: Upload Windows artifacts to release
         run: |
+          TAG=${{ github.event.release.tag_name || env.LATEST_TAG }}
           for file in ./artifacts/*; do
             echo "Uploading $file"
-            gh release upload ${{ github.event.release.tag_name || github.event.inputs.tag_name }} $file --clobber
+            gh release upload $TAG $file --clobber
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
