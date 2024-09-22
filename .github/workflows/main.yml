@@ -102,7 +102,7 @@ jobs:
       # Upload Windows artifacts to release
       - name: Upload Windows artifacts to release
         run: |
-          $TAG=${{ github.event.release.tag_name }}
+          $TAG="${{ github.event.release.tag_name }}"
           $artifacts = Get-ChildItem -Path ./artifacts
           foreach ($file in $artifacts) {
             Write-Host "Uploading $file"
