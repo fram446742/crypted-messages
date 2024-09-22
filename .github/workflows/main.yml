@@ -88,9 +88,9 @@ jobs:
         run: |
           $projectName = "crypted-messages"  # Replace with your project name
           copy target\x86_64-pc-windows-gnu\release\*.exe artifacts\
-          rename artifacts\*.exe "$projectName-x86_64-pc-windows-gnu.exe"
+          ren artifacts\*.exe "$projectName-x86_64-pc-windows-gnu.exe"
           copy target\x86_64-pc-windows-msvc\release\*.exe artifacts\
-          rename artifacts\*.exe "$projectName-x86_64-pc-windows-msvc.exe"
+          ren artifacts\*.exe "$projectName-x86_64-pc-windows-msvc.exe"
 
       # Upload Windows artifacts to release
       - name: Upload Windows artifacts to release
