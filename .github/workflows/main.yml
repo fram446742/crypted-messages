@@ -1,4 +1,4 @@
-name: Makefile
+name: Rust Windows-Linux-Darwin Cross Build
 
 on:
   release:
