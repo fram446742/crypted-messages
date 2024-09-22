@@ -32,10 +32,6 @@ jobs:
           docker pull joseluisq/rust-linux-darwin-builder:latest
           docker save joseluisq/rust-linux-darwin-builder:latest -o /tmp/.docker-cache/rust-linux-darwin-builder.tar
 
-      - name: Load Docker Image from Cache
-        if: steps.cache-docker-image.outputs.cache-hit == 'true'
-        run: docker load -i /tmp/.docker-cache/rust-linux-darwin-builder.tar
-
       - name: Make shell script executable
         run: chmod +x ./build.sh
 
