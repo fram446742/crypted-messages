@@ -147,10 +147,12 @@ jobs:
       # Upload Windows artifacts to release
       - name: Upload Windows artifacts to release
         run: |
-          TAG=${{ github.event.release.tag_name || env.LATEST_TAG }}
-          for file in ./artifacts/*; do
-            echo "Uploading $file"
-            gh release upload $TAG $file --clobber
-          done
+          $TAG = if ($env:GITHUB_EVENT_RELEASE_TAG_NAME) { $env:GITHUB_EVENT_RELEASE_TAG_NAME } else { $env:LATEST_TAG }
+          $artifacts = Get-ChildItem -Path ./artifacts
+          foreach ($file in $artifacts) {
+            Write-Host "Uploading $file"
+            gh release upload $TAG $file.FullName --clobber
+          }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
