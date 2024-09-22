@@ -1,13 +1,14 @@
-name: Rust Windows-Linux-Darwin Cross Build
-
 on:
   release:
     types:
-      - created  # Trigger this workflow when a release is created
+      - created
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name for manual execution'
+        required: true
 
 jobs:
-  # Docker-based Linux-Darwin build on Ubuntu
   build-linux-darwin:
     runs-on: ubuntu-latest
 
@@ -30,22 +31,20 @@ jobs:
       - name: Run Shell Script
         run: ./build.sh
 
-      # Archive build artifacts (bin folder)
       - name: Archive build artifacts
         run: |
           mkdir -p artifacts
-          cp -r ./bin/* artifacts/  # Copy all generated files from bin to artifacts
+          cp -r ./bin/* artifacts/
 
       - name: Upload Linux-Darwin artifacts to release
         run: |
           for file in ./artifacts/*; do
             echo "Uploading $file"
-            gh release upload ${{ github.event.release.tag_name }} $file --clobber
+            gh release upload ${{ github.event.release.tag_name || github.event.inputs.tag_name }} $file --clobber
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Windows build for both GNU and MSVC targets using cargo
   build-windows:
     runs-on: windows-latest
 
@@ -53,7 +52,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Install Visual Studio Build Tools using Chocolatey
       - name: Install Visual Studio Build Tools
         run: |
           choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive"
@@ -88,7 +86,7 @@ jobs:
         run: |
           for file in ./artifacts/*; do
             echo "Uploading $file"
-            gh release upload ${{ github.event.release.tag_name }} $file --clobber
+            gh release upload ${{ github.event.release.tag_name || github.event.inputs.tag_name }} $file --clobber
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
