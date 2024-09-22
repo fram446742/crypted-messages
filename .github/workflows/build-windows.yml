@@ -1,0 +1,36 @@
+name: Rust Windows Cross Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+
+    - name: Build project for Windows GNU
+      uses: sevco/rust-windows-cross-action@v1.0.0
+      with:
+        args: build --release --all-features --target x86_64-pc-windows-gnu
+        credentials: ${{ secrets.GIT_CREDENTIALS }}
+  
+    - name: Build project for Windows MSVC
+      uses: sevco/rust-windows-cross-action@v1.0.0
+      with:
+        args: build --release --all-features --target x86_64-pc-windows-msvc
+        credentials: ${{ secrets.GIT_CREDENTIALS }}
+    
+    - name: Copy files to artifacts
+      run: |
+        mkdir -p artifacts
+        cp target/x86_64-pc-windows-gnu/release/*.exe artifacts/
+        cp target/x86_64-pc-windows-msvc/release/*.exe artifacts/

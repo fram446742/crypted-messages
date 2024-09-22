@@ -1,6 +1,10 @@
-name: Rust Windows Cross Build
+name: Makefile
 
 on:
+  release:
+    types:
+      - created  # Trigger this workflow when a release is created
+
   workflow_dispatch:
 
 jobs:
@@ -8,17 +12,66 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      # Checkout the code
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        override: true
+      # Install build-essential
+      - name: Install build-essential
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+      
+      # Install Rust
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
 
-    - name: Build project
-      uses: sevco/rust-windows-cross-action@v1.0.0
-      with:
-        args: build --release --all-features
-        credentials: ${{ secrets.GIT_CREDENTIALS }}
+      - name: Build project for Windows GNU
+        uses: sevco/rust-windows-cross-action@v1.0.0
+        with:
+            args: build --release --all-features --target x86_64-pc-windows-gnu
+            credentials: ${{ secrets.GIT_CREDENTIALS }}
+      
+      - name: Build project for Windows MSVC
+        uses: sevco/rust-windows-cross-action@v1.0.0
+        with:
+            args: build --release --all-features --target x86_64-pc-windows-msvc
+            credentials: ${{ secrets.GIT_CREDENTIALS }}
+        
+      - name: Copy files to artifacts
+        run: |
+            mkdir -p artifacts
+            cp target/x86_64-pc-windows-gnu/release/*.exe artifacts/
+            cp target/x86_64-pc-windows-msvc/release/*.exe artifacts/
+
+      # Set up Docker (ensure Docker is available to use)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Pull the specific Docker image (for use in the shell script)
+      - name: Pull Docker Image
+        run: docker pull joseluisq/rust-linux-darwin-builder:latest
+
+      # Add execution permission to the shell script
+      - name: Make shell script executable
+        run: chmod +x ./build.sh
+
+      # Run the shell script directly (which can interact with Docker)
+      - name: Run Shell Script
+        run: ./build.sh
+
+      # Archive build artifacts (bin folder)
+      - name: Archive build artifacts
+        run: |
+          cp -r ./bin/* artifacts/  # Copy all generated files from bin to artifacts
+
+      # Upload each file in the bin directory to the release
+      - name: Upload Release Assets
+        run: |
+          for file in ./artifacts/*; do
+            echo "Uploading $file"
+            gh release upload ${{ github.event.release.tag_name }} $file --clobber
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Automatically provided by GitHub Actions
