@@ -20,32 +20,11 @@ jobs:
         id: get-latest-tag
         run: echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
 
-      # Cache Cargo dependencies
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
       - name: Install build-essential
         run: sudo apt-get update && sudo apt-get install -y build-essential
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      # Cache Docker image
-      - name: Cache Docker image
-        id: cache-docker-image
-        uses: actions/cache@v3
-        with:
-          path: /tmp/.docker-cache
-          key: ${{ runner.os }}-docker-${{ hashFiles('Dockerfile') }}
-          restore-keys: |
-            ${{ runner.os }}-docker-
 
       - name: Pull Docker Image
         run: |
@@ -92,26 +71,6 @@ jobs:
       - name: Get latest tag
         id: get-latest-tag
         run: echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
-
-      # Cache Cargo dependencies
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            C:\Users\runneradmin\.cargo\registry
-            C:\Users\runneradmin\.cargo\git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      # Cache Rust toolchain
-      - name: Cache Rust toolchain
-        uses: actions/cache@v3
-        with:
-          path: C:\Users\runneradmin\.rustup
-          key: ${{ runner.os }}-rustup-${{ hashFiles('rust-toolchain') }}
-          restore-keys: |
-            ${{ runner.os }}-rustup-
 
       # Install Visual Studio Build Tools using Chocolatey
       - name: Install Visual Studio Build Tools
