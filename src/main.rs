@@ -2,7 +2,7 @@ mod client;
 mod server;
 mod tools;
 use local_ip_address::local_ip;
-use tokio::{self};
+use tokio::{ self };
 use tools::get_user_input;
 
 #[tokio::main]
@@ -59,8 +59,10 @@ async fn start_server_flow() -> Result<(), Box<dyn std::error::Error + Send + Sy
 async fn start_client() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     match client::main_client().await {
         Ok(_) => println!("Client session ended. Returning to the main menu..."),
-        Err(err) => return Err(err),
-    };
+        Err(err) => {
+            return Err(err);
+        }
+    }
     Ok(())
 }
 

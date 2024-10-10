@@ -1,5 +1,14 @@
 [toolchain]
 channel = "nightly"
+# profile = "default"
+components = [
+        "cargo",
+        "rustfmt",
+        "clippy",
+        "rls",
+        "rust-src",
+        "rust-std",
+]
 targets = [
         "aarch64-apple-darwin",         # macOS on ARM64
         "aarch64-unknown-linux-gnu",    # Linux on ARM64
@@ -17,3 +26,5 @@ profile = "minimal"
 profile = "minimal"
 [target.x86_64-pc-windows-gnu]
 profile = "minimal"
+[target.x86_64-pc-windows-msvc]
+profile = "default"
