@@ -61,7 +61,7 @@ This project is licensed under the GNU License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-For any questions or suggestions, feel free to open an issue or contact us at [francisco446742@gmail.com](mailto:francisco446472@gmail.com).
+For any questions or suggestions, feel free to open an issue or contact me at [francisco446742@gmail.com](mailto:francisco446472@gmail.com).
 
 ---
 
