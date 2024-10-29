@@ -49,7 +49,7 @@ cargo run
 
 ## Important Notes
 
-You will need to have Docker with an specific image to be able to cross-compile the program using [build-all.bat](build-all.bat).
+You will need to have Docker with an specific image to be able to cross-compile the program using [build.bat](build.bat).
 
 ## Contributing
 
